@@ -1,3 +1,7 @@
 from django.contrib import admin
+from anki.models import Deck, Card, Stat
 
-# Register your models here.
+
+admin.site.register(Deck)
+admin.site.register(Card)
+admin.site.register(Stat)

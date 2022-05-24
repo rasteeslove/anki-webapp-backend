@@ -7,8 +7,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from django.contrib.auth.models import User
-from anki.models import Deck, Card, Stat
-from anki.serializers import DeckSerializer, CardSerializer, StatSerializer
+from anki.models import Deck, Card, DeckDescription, Stat
+from anki.serializers import (DeckInfoSerializer,
+                              DeckSerializer,
+                              CardSerializer,
+                              StatSerializer)
 
 
 class GetDecks(APIView):
@@ -38,9 +41,10 @@ class GetDeckInfo(APIView):
     """
     Get deck info.
 
-    Endpoint: `api/get-decks?username={username}&deckname={deckname}`
+    Endpoint: `api/get-deck-info?username={username}&deckname={deckname}`
 
-    Get a username and deckname, return deck of a passed name of a user
+    Get a username and deckname, return basic deck deck information
+    + the description of a deck of a passed name of a user
     whose username is the passed one.
     If no such deck and/or user, return 404.
 
@@ -59,25 +63,67 @@ class GetDeckInfo(APIView):
         except Deck.DoesNotExist:
             raise Http404   # TODO: add meta info maybe
 
-        serializer = DeckSerializer(deck)
+        serializer = DeckInfoSerializer(deck)
         return Response(serializer.data)
 
 
 class GetDeckStats(APIView):
     """
     Get user's stats on a deck.
+
+    Endpoint: `get-deck-stats?username={username}&deckname={deckname}`
+
+    Get a username and deckname, return stats of a deck
+    of a passed name of a user whose username is the passed one.
+    If no such deck and/or user, return 404.
+
+    TODO: auth and public/private decks
     """
     def get(self, request: Request, format: Any = None) -> Response:
-        pass
+        username = request.query_params.get('username')
+        deckname = request.query_params.get('deckname')
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise Http404   # TODO: add meta info maybe
+
+        try:
+            deck = Deck.objects.get(owner=user, name=deckname)
+        except Deck.DoesNotExist:
+            raise Http404   # TODO: add meta info maybe
+
+        # TODO: decide upon what to return as the stats
+        return Response()
 
 
 class GetDeckStuff(APIView):
     """
     Get all the stuff of a deck (i.e., name, color, public/private status,
     description, and cards) for update purposes.
+
+    Endpoint: `get-deck-stuff?username={username}&deckname={deckname}`
+
+    TODO: auth
     """
     def get(self, request: Request, format: Any = None) -> Response:
-        pass
+        username = request.query_params.get('username')
+        deckname = request.query_params.get('deckname')
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise Http404   # TODO: add meta info maybe
+
+        try:
+            deck = Deck.objects.get(owner=user, name=deckname)
+        except Deck.DoesNotExist:
+            raise Http404   # TODO: add meta info maybe
+
+        cards = Card.objects.filter(deck=deck)
+
+        deck_serializer = DeckInfoSerializer(deck)
+        card_serializer = CardSerializer(cards, many=True)
+        return Response([deck_serializer.data,
+                         card_serializer.data])
 
 
 class UpdateDeckStuff(APIView):

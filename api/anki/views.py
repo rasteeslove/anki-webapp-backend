@@ -122,17 +122,61 @@ class GetDeckStuff(APIView):
 
         deck_serializer = DeckInfoSerializer(deck)
         card_serializer = CardSerializer(cards, many=True)
-        return Response([deck_serializer.data,
-                         card_serializer.data])
+        return Response({
+                'deck': deck_serializer.data,
+                'cards': card_serializer.data
+            })
 
 
 class UpdateDeckStuff(APIView):
     """
     Update a deck's stuff (i.e., name, color, public/private status,
     description, and cards).
+
+    Endpoint: `api/update-deck-stuff`
+
+    TODO: auth
     """
     def post(self, request: Request, format: Any = None) -> Response:
-        pass
+        username = request.query_params.get('username')
+        deckinfo = request.data.get('deck')
+        cards = request.data.get('cards')
+
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise Http404   # TODO: add meta info maybe
+
+        try:
+            deck = Deck.objects.get(owner=user, pk=deckinfo.id)
+            deck.name = deckinfo.name
+            deck.color = deckinfo.color
+            deck.public = deckinfo.public
+        except Deck.DoesNotExist:
+            deck = Deck(name=deckinfo.name, color=deckinfo.color,
+                        public=deckinfo.public, owner=user)
+        deck.save()
+            
+        try:
+            description = DeckDescription.objects.get(deck=deck)
+            description.description = deckinfo.description
+        except DeckDescription.DoesNotExist:
+            description = DeckDescription(description=deckinfo.description,
+                                          deck=deck)
+        description.save()
+
+        for card in cards:
+            try:
+                card_in_db = Card.objects.get(pk=card.id)
+                card_in_db.question = card.question
+                card_in_db.answer = card.answer
+            except Card.DoesNotExist:
+                card_in_db = Card(question = card.question,
+                                  answer = card.answer,
+                                  deck=deck)
+            card_in_db.save()
+
+        return Response()
 
 
 class PullNextCard(APIView):

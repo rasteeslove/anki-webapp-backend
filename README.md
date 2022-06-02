@@ -16,7 +16,7 @@ API endpoints:
 
 - api/get-decks {username} : get decks base data for a username (if {username} not yours, public decks are retrieved)
 - api/get-deck-info {username} {deckname} : get full data for a specific deck of a specific user (if it's accessable)
-- api/get-deck-stats {username} {deckname} ? : get stats of a deck for the client to render
+- api/get-deck-stats {username} {deckname} ? : get stats of a deck for the client to render (format to be determined)
 
 ##### editmode
 

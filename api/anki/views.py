@@ -43,7 +43,7 @@ class GetDeckInfo(APIView):
 
     Endpoint: `api/get-deck-info?username={username}&deckname={deckname}`
 
-    Get a username and deckname, return basic deck deck information
+    Get a username and deckname, return basic deck information
     + the description of a deck of a passed name of a user
     whose username is the passed one.
     If no such deck and/or user, return 404.
@@ -186,7 +186,9 @@ class PullNextCard(APIView):
     the backend find appropriate to give to a user.
     """
     def get(self, request: Request, format: Any = None) -> Response:
-        pass
+        pass  # here the app supposedly accesses all the stats on
+              # a deck and decides what card is the most suitable to
+              # return.
 
 
 class PostFeedback(APIView):

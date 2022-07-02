@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
+from api.secrets import PROD_SECRET_KEY
+
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -18,9 +20,6 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '_k)j9k^4k2$_mjlspiccb$%zd4_q$(&4*)o#b28j2!e^m&ne35'
 
 
 ######################################
@@ -36,6 +35,10 @@ JWT_AUTH = False
 ###                                ###
 ######################################
 
+
+# SECURITY WARNING: keep the secret key used in production secret!
+
+SECRET_KEY = '_k)j9k^4k2$_mjlspiccb$%zd4_q$(&4*)o#b28j2!e^m&ne35' if DEBUG else PROD_SECRET_KEY
 
 ALLOWED_HOSTS = []
 

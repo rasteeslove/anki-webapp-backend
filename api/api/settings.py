@@ -22,11 +22,21 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = '_k)j9k^4k2$_mjlspiccb$%zd4_q$(&4*)o#b28j2!e^m&ne35'
 
-# SECURITY WARNING: don't run with debug turned on in production!
+
+
+### MANUAL SETTINGS START HERE ###
+
+# Debug | Prod
 DEBUG = True
 
-ALLOWED_HOSTS = []
+# Auth protection enabled | disabled
+JWT_AUTH = False
 
+### MANUAL SETTINGS END HERE ###
+
+
+
+ALLOWED_HOSTS = []
 
 # Application definition
 
@@ -52,6 +62,18 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend'
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ]
+}
 
 CORS_ORIGIN_WHITELIST = [
     'http://localhost:3000'

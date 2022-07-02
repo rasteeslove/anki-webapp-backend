@@ -23,17 +23,18 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = '_k)j9k^4k2$_mjlspiccb$%zd4_q$(&4*)o#b28j2!e^m&ne35'
 
 
+######################################
+###                                ### 
+###   MANUAL SETTINGS START HERE   ###
+###                                ###
 
-### MANUAL SETTINGS START HERE ###
-
-# Debug | Prod
 DEBUG = True
-
-# Auth protection enabled | disabled
 JWT_AUTH = False
 
-### MANUAL SETTINGS END HERE ###
-
+###                                ###
+###    MANUAL SETTINGS END HERE    ###
+###                                ###
+######################################
 
 
 ALLOWED_HOSTS = []

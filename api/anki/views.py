@@ -28,13 +28,12 @@ class GetDecks(APIView):
         2. username <-> jwt ? send all decks : send public decks
     """
     def get(self, request: Request, format: Any = None) -> Response:
-        # 1:
         username = request.query_params.get('username')
+        # 1:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
             raise Http404   # no user with such username
-
         # 2:
         jwt_username = request.user.username
         if not JWT_AUTH or username == jwt_username:

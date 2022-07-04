@@ -1,6 +1,6 @@
 from typing import Any
 
-from django.http import Http404
+from django.http import Http404, HttpResponse
 
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -85,31 +85,45 @@ class GetDeckInfo(APIView):
 
 class GetDeckStats(APIView):
     """
-    Get user's stats on a deck.
+    Get user's stats on a deck if allowed.
 
     Endpoint: `get-deck-stats?username={username}&deckname={deckname}`
 
-    Get a username and deckname, return stats of a deck
-    of a passed name of a user whose username is the passed one.
-    If no such deck and/or user, return 404.
-
-    TODO: auth and public/private decks
+    Params: username, deckname, jwt
+    Logic:
+        0. no jwt -> no stats (401) (irregardless of JWT_AUTH)
+        1. Does the {username} user exist ? continue : 404(user) 
+        2. Does the {deckname} deck exist ? continue : 404(deck) 
+        3. Is the deck public ? get the user(jwt) stats : continue
+        4. username <-> jwt ? get user(jwt) stats : 404(deck)
     """
     def get(self, request: Request, format: Any = None) -> Response:
         username = request.query_params.get('username')
         deckname = request.query_params.get('deckname')
+        # 0:
+        jwt_username = request.user.username
+        if not jwt_username:
+            raise HttpResponse(status=401)
+        # 1:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            raise Http404   # TODO: add meta info maybe
-
+            raise Http404   # TODO: indicate that there's no user with
+                            # the requested username
+        # 2:
         try:
-            deck = Deck.objects.get(owner=user, name=deckname)
+            deck: Deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
-            raise Http404   # TODO: add meta info maybe
-
-        # TODO: decide upon what to return as the stats
-        return Response()
+            raise Http404   # TODO: indicate that there's no deck with
+                            # the requested name
+        # 3&4:
+        if deck.public or username == jwt_username:
+            stats = Stat.objects.all().filter(owner=jwt_username)
+        else:
+            raise Http404   # TODO: indicate that there's no deck with
+                            # the requested name
+        serializer = StatSerializer(stats, many=True)
+        return Response(serializer.data)
 
 
 class GetDeckStuff(APIView):

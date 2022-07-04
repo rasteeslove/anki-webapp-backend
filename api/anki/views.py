@@ -47,30 +47,38 @@ class GetDecks(APIView):
 
 class GetDeckInfo(APIView):
     """
-    Get deck info.
+    Get deck info if allowed.
 
     Endpoint: `api/get-deck-info?username={username}&deckname={deckname}`
 
-    Get a username and deckname, return basic deck information
-    + the description of a deck of a passed name of a user
-    whose username is the passed one.
-    If no such deck and/or user, return 404.
-
-    TODO: auth and public/private decks
+    Params: username, deckname, ?jwt
+    Logic:
+        1. Does the {username} user exist ? continue : 404(user) 
+        2. Does the {deckname} deck exist ? continue : 404(deck) 
+        3. Is the deck public ? send deck info : continue
+        4. username <-> jwt ? send deck info : 404(deck)
     """
     def get(self, request: Request, format: Any = None) -> Response:
         username = request.query_params.get('username')
         deckname = request.query_params.get('deckname')
+        # 1:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            raise Http404   # TODO: add meta info maybe
-
+            raise Http404   # TODO: indicate that there's no user with
+                            # the requested username
+        # 2:
         try:
-            deck = Deck.objects.get(owner=user, name=deckname)
+            deck: Deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
-            raise Http404   # TODO: add meta info maybe
-
+            raise Http404   # TODO: indicate that there's no deck with
+                            # the requested name
+        # 3&4:
+        if JWT_AUTH and not deck.public:
+            jwt_username = request.user.username
+            if username != jwt_username:
+                raise Http404   # TODO: indicate that there's no deck
+                                # with the requested name
         serializer = DeckInfoSerializer(deck)
         return Response(serializer.data)
 

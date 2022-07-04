@@ -128,28 +128,41 @@ class GetDeckStats(APIView):
 
 class GetDeckStuff(APIView):
     """
-    Get all the stuff of a deck (i.e., name, color, public/private status,
-    description, and cards) for update purposes.
+    Get all the stuff of {my} deck (i.e., name, color,
+    public/private status, description, and cards) for update purposes.
 
     Endpoint: `get-deck-stuff?username={username}&deckname={deckname}`
 
-    TODO: auth
+    Params: username, deckname, jwt
+    Logic:
+        0. no jwt -> no stuff (401)
+        1. Does the {username} user exist ? continue : 404(user) 
+        2. username <-> jwt ? continue : 401 error
+        3. Does the {deckname} deck exist ? return stuff : 404(deck) 
     """
     def get(self, request: Request, format: Any = None) -> Response:
         username = request.query_params.get('username')
         deckname = request.query_params.get('deckname')
+        # 0:
+        jwt_username = request.user.username
+        if not jwt_username:
+            raise HttpResponse(status=401)
+        # 1:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            raise Http404   # TODO: add meta info maybe
-
+            raise Http404   # TODO: indicate that there's no user with
+                            # the requested name
+        # 2:
+        if username != jwt_username:
+            raise HttpResponse(status=401)
+        # 3:
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
-            raise Http404   # TODO: add meta info maybe
-
+            raise Http404   # TODO: indicate that there's no deck with
+                            # the requested name
         cards = Card.objects.filter(deck=deck)
-
         deck_serializer = DeckInfoSerializer(deck)
         card_serializer = CardSerializer(cards, many=True)
         return Response({

@@ -13,26 +13,35 @@ from anki.serializers import (DeckInfoSerializer,
                               CardSerializer,
                               StatSerializer)
 
+from api.settings import JWT_AUTH
+
 
 class GetDecks(APIView):
     """
-    Get all decks of a user.
+    Get all user's decks which are accessable to the requesting one.
 
     Endpoint: `api/get-decks?username={username}`
 
-    Get a username, return decks of a user whose username that is.
-    If no such user, return 404.
-
-    TODO: auth and public/private decks
+    Params: username, ?jwt 
+    Logic: 
+        1. Does the {username} user exist ? continue : 404 
+        2. username <-> jwt ? send all decks : send public decks
     """
     def get(self, request: Request, format: Any = None) -> Response:
+        # 1:
         username = request.query_params.get('username')
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            raise Http404   # TODO: add meta info maybe
+            raise Http404   # no user with such username
 
+        # 2:
+        jwt_username = request.user.username
+        if not JWT_AUTH or username == jwt_username:
         decks = Deck.objects.all().filter(owner=user)
+        else:
+            decks = (Deck.objects.all().filter(owner=user)
+                                       .filter(public=True))
         serializer = DeckSerializer(decks, many=True)
         return Response(serializer.data)
 

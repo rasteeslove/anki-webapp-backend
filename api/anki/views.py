@@ -103,7 +103,7 @@ class GetDeckStats(APIView):
         # 0:
         jwt_username = request.user.username
         if not jwt_username:
-            raise HttpResponse(status=401)
+            return HttpResponse(status=401)
         # 1:
         try:
             user = User.objects.get(username=username)
@@ -146,7 +146,7 @@ class GetDeckStuff(APIView):
         # 0:
         jwt_username = request.user.username
         if not jwt_username:
-            raise HttpResponse(status=401)
+            return HttpResponse(status=401)
         # 1:
         try:
             user = User.objects.get(username=username)
@@ -155,7 +155,7 @@ class GetDeckStuff(APIView):
                             # the requested name
         # 2:
         if username != jwt_username:
-            raise HttpResponse(status=401)
+            return HttpResponse(status=401)
         # 3:
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
@@ -187,7 +187,7 @@ class UpdateDeckStuff(APIView):
         cards = request.data.get('cards')
         jwt_username = request.user.username
         if username != jwt_username:
-            raise HttpResponse(status=401)
+            return HttpResponse(status=401)
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:

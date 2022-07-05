@@ -1,6 +1,6 @@
 from typing import Any
 
-from django.http import Http404, HttpResponse
+from django.http import HttpResponse, HttpResponseNotFound
 
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -33,7 +33,7 @@ class GetDecks(APIView):
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            raise Http404   # no user with such username
+            return HttpResponseNotFound(f'{username} user not found')
         # 2:
         jwt_username = request.user.username
         if not JWT_AUTH or username == jwt_username:
@@ -65,20 +65,17 @@ class GetDeckInfo(APIView):
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            raise Http404   # TODO: indicate that there's no user with
-                            # the requested username
+            return HttpResponseNotFound(f'{username} user not found')
         # 2:
         try:
             deck: Deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
-            raise Http404   # TODO: indicate that there's no deck with
-                            # the requested name
+            return HttpResponseNotFound(f'{deckname} deck not found')
         # 3&4:
         if JWT_AUTH and not deck.public:
             jwt_username = request.user.username
             if username != jwt_username:
-                raise Http404   # TODO: indicate that there's no deck
-                                # with the requested name
+                return HttpResponseNotFound(f'{deckname} deck not found')
         serializer = DeckInfoSerializer(deck)
         return Response(serializer.data)
 
@@ -108,20 +105,17 @@ class GetDeckStats(APIView):
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            raise Http404   # TODO: indicate that there's no user with
-                            # the requested username
+            return HttpResponseNotFound(f'{username} user not found')
         # 2:
         try:
             deck: Deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
-            raise Http404   # TODO: indicate that there's no deck with
-                            # the requested name
+            return HttpResponseNotFound(f'{deckname} deck not found')
         # 3&4:
         if deck.public or username == jwt_username:
             stats = Stat.objects.all().filter(owner=jwt_username)
         else:
-            raise Http404   # TODO: indicate that there's no deck with
-                            # the requested name
+            return HttpResponseNotFound(f'{deckname} deck not found')
         serializer = StatSerializer(stats, many=True)
         return Response(serializer.data)
 
@@ -151,8 +145,7 @@ class GetDeckStuff(APIView):
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            raise Http404   # TODO: indicate that there's no user with
-                            # the requested name
+            return HttpResponseNotFound(f'{username} user not found')
         # 2:
         if username != jwt_username:
             return HttpResponse(status=401)
@@ -160,8 +153,7 @@ class GetDeckStuff(APIView):
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
-            raise Http404   # TODO: indicate that there's no deck with
-                            # the requested name
+            return HttpResponseNotFound(f'{deckname} deck not found')
         cards = Card.objects.filter(deck=deck)
         deck_serializer = DeckInfoSerializer(deck)
         card_serializer = CardSerializer(cards, many=True)
@@ -191,8 +183,7 @@ class UpdateDeckStuff(APIView):
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            raise Http404   # TODO: indicate that there's no user with
-                            # the requested name
+            return HttpResponseNotFound(f'{username} user not found')
         try:
             deck = Deck.objects.get(owner=user, pk=deckinfo.id)
             deck.name = deckinfo.name

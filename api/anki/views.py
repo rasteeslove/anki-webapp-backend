@@ -37,7 +37,7 @@ class GetDecks(APIView):
         # 2:
         jwt_username = request.user.username
         if not JWT_AUTH or username == jwt_username:
-        decks = Deck.objects.all().filter(owner=user)
+            decks = Deck.objects.all().filter(owner=user)
         else:
             decks = (Deck.objects.all().filter(owner=user)
                                        .filter(public=True))
@@ -173,23 +173,26 @@ class GetDeckStuff(APIView):
 
 class UpdateDeckStuff(APIView):
     """
-    Update a deck's stuff (i.e., name, color, public/private status,
+    Update {my} deck's stuff (i.e., name, color, public/private status,
     description, and cards).
 
     Endpoint: `api/update-deck-stuff`
 
-    TODO: auth
+    Input: jwt, deck stuff
+    1. Process (jwt)user's deck stuff and modify the database objects
     """
     def post(self, request: Request, format: Any = None) -> Response:
         username = request.query_params.get('username')
         deckinfo = request.data.get('deck')
         cards = request.data.get('cards')
-
+        jwt_username = request.user.username
+        if username != jwt_username:
+            raise HttpResponse(status=401)
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            raise Http404   # TODO: add meta info maybe
-
+            raise Http404   # TODO: indicate that there's no user with
+                            # the requested name
         try:
             deck = Deck.objects.get(owner=user, pk=deckinfo.id)
             deck.name = deckinfo.name
@@ -199,7 +202,6 @@ class UpdateDeckStuff(APIView):
             deck = Deck(name=deckinfo.name, color=deckinfo.color,
                         public=deckinfo.public, owner=user)
         deck.save()
-            
         try:
             description = DeckDescription.objects.get(deck=deck)
             description.description = deckinfo.description
@@ -207,7 +209,6 @@ class UpdateDeckStuff(APIView):
             description = DeckDescription(description=deckinfo.description,
                                           deck=deck)
         description.save()
-
         for card in cards:
             try:
                 card_in_db = Card.objects.get(pk=card.id)
@@ -218,7 +219,6 @@ class UpdateDeckStuff(APIView):
                                   answer = card.answer,
                                   deck=deck)
             card_in_db.save()
-
         return Response()
 
 

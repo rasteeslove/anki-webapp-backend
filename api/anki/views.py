@@ -218,6 +218,9 @@ class PullNextCard(APIView):
     Get a not-exactly-random card from a deck.
     To clarify: "not-exactly-random" means the next card that
     the backend find appropriate to give to a user.
+
+    Basically the logic of this view is the biggest pain in the ass
+    of the whole app.
     """
     def get(self, request: Request, format: Any = None) -> Response:
         pass  # here the app supposedly accesses all the stats on

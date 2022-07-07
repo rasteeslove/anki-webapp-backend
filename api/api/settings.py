@@ -28,7 +28,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ###                                ###
 
 DEBUG = True
-JWT_AUTH = False
+JWT_AUTH = True
 
 ###                                ###
 ###    MANUAL SETTINGS END HERE    ###

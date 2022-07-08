@@ -81,7 +81,11 @@ REST_FRAMEWORK = {
 }
 
 CORS_ORIGIN_WHITELIST = [
-    'http://localhost:3000'
+    'http://localhost:3000',
+    # in case I run a couple of other React apps:
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://localhost:3003',
 ]
 
 ROOT_URLCONF = 'api.urls'

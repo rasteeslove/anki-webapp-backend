@@ -12,7 +12,8 @@ class DeckSerializer(serializers.ModelSerializer):
 
 class DeckInfoSerializer(serializers.ModelSerializer):
     description = serializers.CharField(source='description.description')
-    
+    card_number = serializers.ReadOnlyField()
+
     class Meta:
         model = Deck
         fields = '__all__'

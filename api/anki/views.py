@@ -8,12 +8,31 @@ from rest_framework.views import APIView
 
 from django.contrib.auth.models import User
 from anki.models import Deck, Card, DeckDescription, Stat
-from anki.serializers import (DeckInfoSerializer,
+from anki.serializers import (UserSerializer,
+                              DeckInfoSerializer,
                               DeckSerializer,
                               CardSerializer,
                               StatSerializer)
 
 from api.settings import JWT_AUTH
+
+
+class GetMe(APIView):
+    """
+    Get the user by the provided JWT token.
+
+    Params: ?jwt
+    """
+    def get(self, request: Request, format: Any = None) -> Response:
+        jwt_username = request.user.username
+        if not jwt_username:
+            return Response()   # empty response if no token
+        try:
+            user = User.objects.get(username=jwt_username)
+        except:
+            return HttpResponseNotFound(f'{jwt_username} user not found')
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
 
 
 class GetDecks(APIView):

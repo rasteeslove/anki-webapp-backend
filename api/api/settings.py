@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
+from api.secrets import PROD_SECRET_KEY
+
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,14 +21,26 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '_k)j9k^4k2$_mjlspiccb$%zd4_q$(&4*)o#b28j2!e^m&ne35'
 
-# SECURITY WARNING: don't run with debug turned on in production!
+######################################
+###                                ### 
+###   MANUAL SETTINGS START HERE   ###
+###                                ###
+
 DEBUG = True
+JWT_AUTH = True
+
+###                                ###
+###    MANUAL SETTINGS END HERE    ###
+###                                ###
+######################################
+
+
+# SECURITY WARNING: keep the secret key used in production secret!
+
+SECRET_KEY = '_k)j9k^4k2$_mjlspiccb$%zd4_q$(&4*)o#b28j2!e^m&ne35' if DEBUG else PROD_SECRET_KEY
 
 ALLOWED_HOSTS = []
-
 
 # Application definition
 
@@ -39,6 +53,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework',
+    'django_filters',
     'anki',
 ]
 
@@ -53,8 +68,24 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
 ]
 
+REST_FRAMEWORK = {
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend'
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ]
+}
+
 CORS_ORIGIN_WHITELIST = [
-    'http://localhost:3000'
+    'http://localhost:3000',
+    # in case I run a couple of other React apps:
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://localhost:3003',
 ]
 
 ROOT_URLCONF = 'api.urls'

@@ -1,0 +1,2 @@
+# ignore secrets.py bc that's the module with production secret key
+secrets.py

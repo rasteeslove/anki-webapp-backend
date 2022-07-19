@@ -15,8 +15,16 @@ class Deck(models.Model):
                                                  related_name='deck',
                                                  null=True)
 
+    @property
+    def card_number(self):
+        card_number = Card.objects.filter(deck=self.pk).count()
+        return card_number
+
     def __str__(self) -> str:
         return self.name
+
+    class Meta:
+        unique_together = ('name', 'owner')
 
 
 class DeckDescription(models.Model):

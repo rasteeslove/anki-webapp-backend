@@ -1,5 +1,6 @@
 from django.urls import path
-from anki.views import (GetDecks,
+from anki.views import (GetMe,
+                        GetDecks,
                         GetDeckInfo,
                         GetDeckStats,
                         GetDeckStuff,
@@ -9,6 +10,7 @@ from anki.views import (GetDecks,
 
 
 anki_urls = [
+    path('get-me', GetMe.as_view()),
     path('get-decks', GetDecks.as_view()),
     path('get-deck-info', GetDeckInfo.as_view()),
     path('get-deck-stats', GetDeckStats.as_view()),

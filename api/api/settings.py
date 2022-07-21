@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
+from datetime import timedelta
 import os
 from api.secrets import PROD_SECRET_KEY
 
@@ -27,7 +28,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ###   MANUAL SETTINGS START HERE   ###
 ###                                ###
 
-DEBUG = True
+DEBUG = False
 JWT_AUTH = True
 
 ###                                ###
@@ -40,7 +41,7 @@ JWT_AUTH = True
 
 SECRET_KEY = '_k)j9k^4k2$_mjlspiccb$%zd4_q$(&4*)o#b28j2!e^m&ne35' if DEBUG else PROD_SECRET_KEY
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['0.0.0.0', 'localhost', '127.0.0.1', 'anki-webapp-backend.herokuapp.com']
 
 # Application definition
 
@@ -60,12 +61,12 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
 ]
 
 REST_FRAMEWORK = {
@@ -107,6 +108,11 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'api.wsgi.application'
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(seconds=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(minutes=10),
+}
 
 
 # Database

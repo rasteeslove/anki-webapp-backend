@@ -12,11 +12,15 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 from datetime import timedelta
 import os
-import time
 import dj_database_url
 
-time.sleep(300)
-from api.secrets import PROD_SECRET_KEY
+try:
+    from api.secrets import PROD_SECRET_KEY
+except:
+    try:
+        PROD_SECRET_KEY = os.environ.get('SECRET_KEY')
+    except:
+        pass
 
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)

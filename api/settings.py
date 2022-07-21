@@ -12,7 +12,10 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 from datetime import timedelta
 import os
+import time
 import dj_database_url
+
+time.sleep(300)
 from api.secrets import PROD_SECRET_KEY
 
 

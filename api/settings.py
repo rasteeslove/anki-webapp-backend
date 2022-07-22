@@ -91,12 +91,16 @@ REST_FRAMEWORK = {
     ]
 }
 
-CORS_ORIGIN_WHITELIST = [
+CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     # in case I run a couple of other React apps:
     'http://localhost:3001',
     'http://localhost:3002',
     'http://localhost:3003',
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^https://https://anki-webapp.*\.vercel\.app$',
 ]
 
 ROOT_URLCONF = 'api.urls'

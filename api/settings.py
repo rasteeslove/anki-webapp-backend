@@ -100,7 +100,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r'^https://https://anki-webapp.*\.vercel\.app$',
+    r'^https://anki-webapp.*\.vercel\.app$',
 ]
 
 ROOT_URLCONF = 'api.urls'

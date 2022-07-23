@@ -204,29 +204,29 @@ class UpdateDeckStuff(APIView):
         except User.DoesNotExist:
             return HttpResponseNotFound(f'{username} user not found')
         try:
-            deck = Deck.objects.get(owner=user, pk=deckinfo.id)
-            deck.name = deckinfo.name
-            deck.color = deckinfo.color
-            deck.public = deckinfo.public
+            deck = Deck.objects.get(owner=user, pk=deckinfo['id'])
+            deck.name = deckinfo['name']
+            deck.color = deckinfo['color']
+            deck.public = deckinfo['public']
         except Deck.DoesNotExist:
-            deck = Deck(name=deckinfo.name, color=deckinfo.color,
-                        public=deckinfo.public, owner=user)
+            deck = Deck(name=deckinfo['name'], color=deckinfo['color'],
+                        public=deckinfo['public'], owner=user)
         deck.save()
         try:
             description = DeckDescription.objects.get(deck=deck)
-            description.description = deckinfo.description
+            description.description = deckinfo['description']
         except DeckDescription.DoesNotExist:
-            description = DeckDescription(description=deckinfo.description,
+            description = DeckDescription(description=deckinfo['description'],
                                           deck=deck)
         description.save()
         for card in cards:
             try:
-                card_in_db = Card.objects.get(pk=card.id)
-                card_in_db.question = card.question
-                card_in_db.answer = card.answer
+                card_in_db = Card.objects.get(pk=card['id'])
+                card_in_db.question = card['question']
+                card_in_db.answer = card['answer']
             except Card.DoesNotExist:
-                card_in_db = Card(question = card.question,
-                                  answer = card.answer,
+                card_in_db = Card(question = card['question'],
+                                  answer = card['answer'],
                                   deck=deck)
             card_in_db.save()
         return Response()

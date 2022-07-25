@@ -328,7 +328,7 @@ class PostFeedback(APIView):
         try:
             card = Card.objects.get(deck=deck, pk=card_id)
         except Deck.DoesNotExist:
-            return HttpResponseNotFound(f'{deckname} deck not found')
+            return HttpResponseNotFound(f'{deckname} card not found')
         # 5:
         stat = Stat(feedback=feedback,
                     owner=jwt_user,

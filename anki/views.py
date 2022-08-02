@@ -17,25 +17,29 @@ from anki.serializers import (UserSerializer,
 
 from api.settings import JWT_AUTH
 
-# TODO: add validation for post request dict keys and return
-# "Bad Request" responses if invalid.
-# TODO: check existense of the token holder
-
 
 class GetMe(APIView):
     """
     Get the user by the provided JWT token.
 
+    Endpoint: `api/get-me`
+
     Params: ?jwt
+    Logic:
+        0. [token present -> the middleware checks token validity]
+        1. Get claimed username from the token
+        2. Anonymous user -> empty response   TODO: maybe consider
+                                              different approach
+        3. Return user object
     """
     def get(self, request: Request, format: Any = None) -> Response:
         jwt_username = request.user.username
         if not jwt_username:
-            return Response()   # empty response if no token
+            return Response()   # (EMPTY RESPONSE IF NO TOKEN)
         try:
             user = User.objects.get(username=jwt_username)
         except:
-            return HttpResponseNotFound(f'{jwt_username} user not found')
+            return HttpResponseNotFound(f'{jwt_username} user not found smh')
         serializer = UserSerializer(user)
         return Response(serializer.data)
 
@@ -46,8 +50,9 @@ class GetDecks(APIView):
 
     Endpoint: `api/get-decks?username={username}`
 
-    Params: username, ?jwt 
-    Logic: 
+    Params: username, ?jwt
+    Logic:
+        0. [token present -> the middleware checks token validity]
         1. Does the {username} user exist ? continue : 404 
         2. username <-> jwt ? send all decks : send public decks
     """
@@ -77,6 +82,7 @@ class GetDeckInfo(APIView):
 
     Params: username, deckname, ?jwt
     Logic:
+        0. [token present -> the middleware checks token validity]
         1. Does the {username} user exist ? continue : 404(user) 
         2. Does the {deckname} deck exist ? continue : 404(deck) 
         3. Is the deck public ? send deck info : continue
@@ -112,30 +118,31 @@ class GetDeckStats(APIView):
 
     Params: username, deckname, jwt
     Logic:
-        0. no jwt -> no stats (401) (irregardless of JWT_AUTH)
-        1. Does the {username} user exist ? continue : 404(user) 
-        2. Does the {deckname} deck exist ? continue : 404(deck) 
-        3. Is the deck public ? get the user(jwt) stats : continue
-        4. username <-> jwt ? get user(jwt) stats : 404(deck)
+        0. [token present -> the middleware checks token validity]
+        1. no jwt -> no stats (401) (irregardless of JWT_AUTH)
+        2. Does the {username} user exist ? continue : 404(user)
+        3. Does the {deckname} deck exist ? continue : 404(deck)
+        4. Is the deck public ? get the user(jwt) stats : continue
+        5. username <-> jwt ? get user(jwt) stats : 404(deck)
     """
     def get(self, request: Request, format: Any = None) -> Response:
         username = request.query_params.get('username')
         deckname = request.query_params.get('deckname')
-        # 0:
+        # 1:
         jwt_username = request.user.username
         if not jwt_username:
             return HttpResponse(status=401)
-        # 1:
+        # 2:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
             return HttpResponseNotFound(f'{username} user not found')
-        # 2:
+        # 3:
         try:
             deck: Deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
             return HttpResponseNotFound(f'{deckname} deck not found')
-        # 3&4:
+        # 4&5:
         if deck.public or username == jwt_username:
             stats = Stat.objects.all().filter(owner=jwt_username)
         else:
@@ -153,27 +160,28 @@ class GetDeckStuff(APIView):
 
     Params: username, deckname, jwt
     Logic:
-        0. no jwt -> no stuff (401)
-        1. Does the {username} user exist ? continue : 404(user) 
-        2. username <-> jwt ? continue : 401 error
-        3. Does the {deckname} deck exist ? return stuff : 404(deck) 
+        0. [token present -> the middleware checks token validity]
+        1. no jwt -> no stuff (401)
+        2. Does the {username} user exist ? continue : 404(user)
+        3. username <-> jwt ? continue : 401 error
+        4. Does the {deckname} deck exist ? return stuff : 404(deck)
     """
     def get(self, request: Request, format: Any = None) -> Response:
         username = request.query_params.get('username')
         deckname = request.query_params.get('deckname')
-        # 0:
+        # 1:
         jwt_username = request.user.username
         if not jwt_username:
             return HttpResponse(status=401)
-        # 1:
+        # 2:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
             return HttpResponseNotFound(f'{username} user not found')
-        # 2:
+        # 3:
         if username != jwt_username:
             return HttpResponse(status=401)
-        # 3:
+        # 4:
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
@@ -195,12 +203,17 @@ class UpdateDeckStuff(APIView):
     Endpoint: `api/update-deck-stuff?username={username}`
 
     Input: jwt, username, deck stuff
-    1. Process (jwt)user's deck stuff and modify the database objects
+    Logic:
+        0. [token present -> the middleware checks token validity]
+        1. Validate the received request data against some schema
+        2. Process (jwt)user's deck stuff and modify the database objects
     """
     def post(self, request: Request, format: Any = None) -> Response:
+        # 1: TODO: VALIDATE DATA
         username = request.query_params.get('username')
         deckinfo = request.data.get('deck')
         cards = request.data.get('cards')
+        # 2:
         jwt_username = request.user.username
         if username != jwt_username:
             return HttpResponse(status=401)
@@ -251,29 +264,30 @@ class PullNextCard(APIView):
 
     Params: username, deckname, jwt
     Logic:
-        0. no jwt -> no stuff (401)
-        1. Does the {username} user exist ? continue : 404(user)
-        2. Does the {deckname} deck exist ? continue : 404(deck)
-        3. [tmp] Get random card from the deck
+        0. [token present -> the middleware checks token validity]
+        1. no jwt -> no stuff (401)
+        2. Does the {username} user exist ? continue : 404(user)
+        3. Does the {deckname} deck exist ? continue : 404(deck)
+        4. [tmp] Get random card from the deck
     """
     def get(self, request: Request, format: Any = None) -> Response:
         username = request.query_params.get('deck_owner_username')
         deckname = request.query_params.get('deckname')
-        # 0:
+        # 1:
         jwt_username = request.user.username
         if not jwt_username:
             return HttpResponse(status=401)
-        # 1:
+        # 2:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
             return HttpResponseNotFound(f'{username} user not found')
-        # 2:
+        # 3:
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
             return HttpResponseNotFound(f'{deckname} deck not found')
-        # 3:
+        # 4:
         cards = list(Card.objects.filter(deck=deck))
         if not cards:
             return Response('no cards in deck')
@@ -289,47 +303,51 @@ class PostFeedback(APIView):
 
     Endpoint: `post-feedback`
 
+    TODO: change the protocol to also include the username of the one
+          leaving the feedback to enable JWT_AUTH=False tests later
+
     Input: jwt, deck_owner_username, deckname, card_id, feedback
     Logic:
-        0: no jwt -> no posting feedback (401)
-        1: Does the jwt user exist ? continue : 401
-        2: Does the {deck_owner_username} user exist ? continue
+        0. [token present -> the middleware checks token validity]
+        1. no jwt -> no posting feedback (401)
+        2. Does the jwt user exist ? continue : 401
+        3. Does the {deck_owner_username} user exist ? continue
                                                      : 404(user)
-        3: Does the {deckname} deck exist ? continue : 404(deck)
-        4: Does the {card_id} card exist ? continue : 404(card)
-        5: Create new Stat(jwt.user, deck) with specified feedback
+        4. Does the {deckname} deck exist ? continue : 404(deck)
+        5. Does the {card_id} card exist ? continue : 404(card)
+        6. Create new Stat(jwt.user, deck) with specified feedback
     """
     def post(self, request: Request, format: Any = None) -> Response:
         deck_owner_username = request.data.get('deck_owner_username')
         deckname = request.data.get('deckname')
         card_id = request.data.get('card_id')
         feedback = request.data.get('feedback')
-        # 0:
+        # 1:
         jwt_username = request.user.username
         if not jwt_username:
             return HttpResponse(status=401)
-        # 1:
+        # 2:
         try:
             jwt_user = User.objects.get(username=jwt_username)
         except User.DoesNotExist:
             return HttpResponse(status=401)
-        # 2:
+        # 3:
         try:
             user = User.objects.get(username=deck_owner_username)
         except User.DoesNotExist:
             return HttpResponseNotFound(f'{deck_owner_username} user '
                                          'not found')
-        # 3:
+        # 4:
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
             return HttpResponseNotFound(f'{deckname} deck not found')
-        # 4:
+        # 5:
         try:
             card = Card.objects.get(deck=deck, pk=card_id)
         except Deck.DoesNotExist:
             return HttpResponseNotFound(f'{card_id} card not found')
-        # 5:
+        # 6:
         stat = Stat(feedback=feedback,
                     owner=jwt_user,
                     card=card)

@@ -4,8 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ee2d093f-3094-4b57-90c4-42dff3831bca" name="Changes" comment="docker-compose general outline set up;">
-      <change afterPath="$PROJECT_DIR$/.dockerignore" afterDir="false" />
+    <list default="true" id="ee2d093f-3094-4b57-90c4-42dff3831bca" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -19,6 +20,7 @@
     <option name="stateVersion" value="1" />
   </component>
   <component name="ProjectId" id="2Cl9kbvRixaIJbL5avegatCCXrh" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -46,7 +48,7 @@
       <option name="presentableId" value="Default" />
       <updated>1659366447633</updated>
       <workItem from="1659366448891" duration="5296000" />
-      <workItem from="1659438491342" duration="2315000" />
+      <workItem from="1659438491342" duration="3159000" />
     </task>
     <task id="LOCAL-00001" summary=".idea folder added bc why not">
       <created>1659373463867</created>
@@ -69,7 +71,21 @@
       <option name="project" value="LOCAL" />
       <updated>1659374476911</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="dockerignore added">
+      <created>1659440956689</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1659440956690</updated>
+    </task>
+    <task id="LOCAL-00005" summary="the .idea folder added">
+      <created>1659441086848</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1659441086848</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -90,6 +106,8 @@
     <MESSAGE value=".idea folder added bc why not" />
     <MESSAGE value="dockerfile for the API addde" />
     <MESSAGE value="docker-compose general outline set up;" />
-    <option name="LAST_COMMIT_MESSAGE" value="docker-compose general outline set up;" />
+    <MESSAGE value="dockerignore added" />
+    <MESSAGE value="the .idea folder added" />
+    <option name="LAST_COMMIT_MESSAGE" value="the .idea folder added" />
   </component>
 </project>

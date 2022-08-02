@@ -42,7 +42,7 @@ class GetMe(APIView):
 
 class GetDecks(APIView):
     """
-    Get all user's decks which are accessable to the requesting one.
+    Get all user's decks which are accessible to the requesting one.
 
     Endpoint: `api/get-decks?username={username}`
 

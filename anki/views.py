@@ -18,6 +18,47 @@ from anki.serializers import (UserSerializer,
 from api.settings import JWT_AUTH
 
 
+class SignUp(APIView):
+    """
+    Sign up view.
+
+    Endpoint: `api/signup`
+
+    Input: username, email, password
+    Logic:
+        0. [token present -> the middleware checks token validity]
+        1. If there's a token, return 400 maybe
+        2. Validate data (including email) and return 400 if not valid
+        3. Create new user object, set active field to false
+        4. Create unique parseable hash-string of some attributes
+           of the user
+        5. Send an email to the provided address with the link
+           containing the parseable hash-string as query parameter
+    """
+    pass
+
+
+class SignUpVerify(APIView):
+    """
+    Sign up verification view.
+
+    Endpoint: `api/signup-verify?code={code}`
+
+    Params: code
+    Logic:
+        0. [token present -> the middleware checks token validity]
+        1. Extract user data from the query parameter code
+        2. Try finding user by the extracted data
+             SUCCESS -> continue
+             FAILURE -> 404(user)
+        3. If user's active field is set to true
+           return 200("already verified")
+        4. If user's active field is set to false
+           set it to true and return 200("verified")
+    """
+    pass
+
+
 class GetMe(APIView):
     """
     Get the user by the provided JWT token.

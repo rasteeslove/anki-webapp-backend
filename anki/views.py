@@ -382,6 +382,14 @@ class UpdateDeckStuff(APIView):
             description = DeckDescription(description=deckinfo['description'],
                                           deck=deck)
         description.save()
+        # cards:
+        # A: remove cards with ids not present in request.data.cards
+        request_cards_ids = [card['id'] for card in cards]
+        db_cards = Card.objects.filter(deck=deck)
+        for db_card in db_cards:
+            if db_card.pk not in request_cards_ids:
+                db_card.delete()
+        # B: update the received cards, create if id not present
         for card in cards:
             try:
                 card_in_db = Card.objects.get(pk=card['id'])

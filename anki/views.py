@@ -1,7 +1,8 @@
-from typing import Any
 import random
 
-from django.http import HttpResponse, HttpResponseNotFound
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.utils.crypto import get_random_string
 
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -17,6 +18,8 @@ from anki.serializers import (UserSerializer,
 
 from api.settings import JWT_AUTH
 
+# TODO: consider different error response codes
+
 
 class SignUp(APIView):
     """
@@ -27,15 +30,65 @@ class SignUp(APIView):
     Input: username, email, password
     Logic:
         0. [token present -> the middleware checks token validity]
-        1. If there's a token, return 400 maybe
+        1. If there's a token, return 400
         2. Validate data (including email) and return 400 if not valid
         3. Create new user object, set active field to false
-        4. Create unique parseable hash-string of some attributes
-           of the user
-        5. Send an email to the provided address with the link
-           containing the parseable hash-string as query parameter
+        4. Send an email to the provided address with the link
+           containing the unique code
+        5. Return the new user object as response
     """
-    pass
+    def post(self, request: Request) -> Response:
+        username = request.data.get('username')
+        email = request.data.get('email')
+        password = request.data.get('password')
+        # 1:
+        jwt_username = request.user.username
+        if jwt_username:
+            return Response(
+                data={
+                    'message': 'you aren\'t supposed to register while logged in'
+                },
+                status=400)
+        # 2:
+        # string lengths:
+        try:
+            assert len(username) <= 20
+            assert len(email) <= 20
+            assert len(password) <= 20
+        except AssertionError:
+            return Response(
+                data={
+                    'message': 'cred strings too long (>20)'
+                },
+                status=400)
+        # email:
+        try:
+            validate_email(email)
+        except ValidationError:
+            return Response(
+                data={
+                    'message': 'invalid email'
+                },
+                status=400)
+        # 3:
+        try:
+            new_user = User.objects.create_user(username=username,
+                                                email=email,
+                                                password=password,
+                                                last_name=get_random_string(length=32))
+            new_user.active = False
+        except Exception as e:
+            print(e)
+            return Response(
+                data={
+                    'message': 'provided username/email already exists'
+                },
+                status=400)
+        # 4:
+        # TODO: use AWS SES
+        # 5:
+        serializer = UserSerializer(new_user)
+        return Response(serializer.data)
 
 
 class SignUpVerify(APIView):
@@ -70,17 +123,22 @@ class GetMe(APIView):
         0. [token present -> the middleware checks token validity]
         1. Get claimed username from the token
         2. Anonymous user -> empty response   TODO: maybe consider
-                                              different approach
+                                                    different approach
         3. Return user object
     """
-    def get(self, request: Request, format: Any = None) -> Response:
+
+    def get(self, request: Request) -> Response:
         jwt_username = request.user.username
         if not jwt_username:
-            return Response()   # (EMPTY RESPONSE IF NO TOKEN)
+            return Response()  # (EMPTY RESPONSE IF NO TOKEN)
         try:
             user = User.objects.get(username=jwt_username)
-        except:
-            return HttpResponseNotFound(f'{jwt_username} user not found smh')
+        except User.DoesNotExist:
+            return Response(
+                data={
+                    'message': f'{jwt_username} user not found'
+                },
+                status=404)
         serializer = UserSerializer(user)
         return Response(serializer.data)
 
@@ -97,20 +155,25 @@ class GetDecks(APIView):
         1. Does the {username} user exist ? continue : 404 
         2. username <-> jwt ? send all decks : send public decks
     """
-    def get(self, request: Request, format: Any = None) -> Response:
+
+    def get(self, request: Request) -> Response:
         username = request.query_params.get('username')
         # 1:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            return HttpResponseNotFound(f'{username} user not found')
+            return Response(
+                data={
+                    'message': f'{username} user not found'
+                },
+                status=404)
         # 2:
         jwt_username = request.user.username
         if not JWT_AUTH or username == jwt_username:
             decks = Deck.objects.all().filter(owner=user)
         else:
             decks = (Deck.objects.all().filter(owner=user)
-                                       .filter(public=True))
+                     .filter(public=True))
         serializer = DeckSerializer(decks, many=True)
         return Response(serializer.data)
 
@@ -129,24 +192,37 @@ class GetDeckInfo(APIView):
         3. Is the deck public ? send deck info : continue
         4. username <-> jwt ? send deck info : 404(deck)
     """
-    def get(self, request: Request, format: Any = None) -> Response:
+
+    def get(self, request: Request) -> Response:
         username = request.query_params.get('username')
         deckname = request.query_params.get('deckname')
         # 1:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            return HttpResponseNotFound(f'{username} user not found')
+            return Response(
+                data={
+                    'message': f'{username} user not found'
+                },
+                status=404)
         # 2:
         try:
             deck: Deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
-            return HttpResponseNotFound(f'{deckname} deck not found')
+            return Response(
+                data={
+                    'message': f'{deckname} deck not found'
+                },
+                status=404)
         # 3&4:
         if JWT_AUTH and not deck.public:
             jwt_username = request.user.username
             if username != jwt_username:
-                return HttpResponseNotFound(f'{deckname} deck not found')
+                return Response(
+                    data={
+                        'message': f'{deckname} deck not found'
+                    },
+                    status=404)
         serializer = DeckInfoSerializer(deck)
         return Response(serializer.data)
 
@@ -166,28 +242,41 @@ class GetDeckStats(APIView):
         4. Is the deck public ? get the user(jwt) stats : continue
         5. username <-> jwt ? get user(jwt) stats : 404(deck)
     """
-    def get(self, request: Request, format: Any = None) -> Response:
+
+    def get(self, request: Request) -> Response:
         username = request.query_params.get('username')
         deckname = request.query_params.get('deckname')
         # 1:
         jwt_username = request.user.username
         if not jwt_username:
-            return HttpResponse(status=401)
+            return Response(status=401)
         # 2:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            return HttpResponseNotFound(f'{username} user not found')
+            return Response(
+                data={
+                    'message': f'{username} user not found'
+                },
+                status=404)
         # 3:
         try:
             deck: Deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
-            return HttpResponseNotFound(f'{deckname} deck not found')
+            return Response(
+                data={
+                    'message': f'{deckname} deck not found'
+                },
+                status=404)
         # 4&5:
         if deck.public or username == jwt_username:
             stats = Stat.objects.all().filter(owner=jwt_username)
         else:
-            return HttpResponseNotFound(f'{deckname} deck not found')
+            return Response(
+                data={
+                    'message': f'{deckname} deck not found'
+                },
+                status=404)
         serializer = StatSerializer(stats, many=True)
         return Response(serializer.data)
 
@@ -207,33 +296,42 @@ class GetDeckStuff(APIView):
         3. username <-> jwt ? continue : 401 error
         4. Does the {deckname} deck exist ? return stuff : 404(deck)
     """
-    def get(self, request: Request, format: Any = None) -> Response:
+
+    def get(self, request: Request) -> Response:
         username = request.query_params.get('username')
         deckname = request.query_params.get('deckname')
         # 1:
         jwt_username = request.user.username
         if not jwt_username:
-            return HttpResponse(status=401)
+            return Response(status=401)
         # 2:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            return HttpResponseNotFound(f'{username} user not found')
+            return Response(
+                data={
+                    'message': f'{username} user not found'
+                },
+                status=404)
         # 3:
         if username != jwt_username:
-            return HttpResponse(status=401)
+            return Response(status=401)
         # 4:
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
-            return HttpResponseNotFound(f'{deckname} deck not found')
+            return Response(
+                data={
+                    'message': f'{deckname} deck not found'
+                },
+                status=404)
         cards = Card.objects.filter(deck=deck)
         deck_serializer = DeckInfoSerializer(deck)
         card_serializer = CardSerializer(cards, many=True)
         return Response({
-                'deck': deck_serializer.data,
-                'cards': card_serializer.data
-            })
+            'deck': deck_serializer.data,
+            'cards': card_serializer.data
+        })
 
 
 class UpdateDeckStuff(APIView):
@@ -248,8 +346,10 @@ class UpdateDeckStuff(APIView):
         0. [token present -> the middleware checks token validity]
         1. Validate the received request data against some schema
         2. Process (jwt)user's deck stuff and modify the database objects
+        3. Return the updated deck stuff
     """
-    def post(self, request: Request, format: Any = None) -> Response:
+
+    def post(self, request: Request) -> Response:
         # 1: TODO: VALIDATE DATA
         username = request.query_params.get('username')
         deckinfo = request.data.get('deck')
@@ -257,11 +357,15 @@ class UpdateDeckStuff(APIView):
         # 2:
         jwt_username = request.user.username
         if username != jwt_username:
-            return HttpResponse(status=401)
+            return Response(status=401)
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            return HttpResponseNotFound(f'{username} user not found')
+            return Response(
+                data={
+                    'message': f'{username} user not found'
+                },
+                status=404)
         try:
             deck = Deck.objects.get(owner=user, pk=deckinfo['id'])
             deck.name = deckinfo['name']
@@ -284,11 +388,19 @@ class UpdateDeckStuff(APIView):
                 card_in_db.question = card['question']
                 card_in_db.answer = card['answer']
             except Card.DoesNotExist:
-                card_in_db = Card(question = card['question'],
-                                  answer = card['answer'],
+                card_in_db = Card(question=card['question'],
+                                  answer=card['answer'],
                                   deck=deck)
             card_in_db.save()
-        return Response()
+        # 3:
+        deck = Deck.objects.get(name=deckinfo['name'], owner=user)
+        cards = Card.objects.filter(deck=deck)
+        deck_serializer = DeckInfoSerializer(deck)
+        card_serializer = CardSerializer(cards, many=True)
+        return Response({
+            'deck': deck_serializer.data,
+            'cards': card_serializer.data
+        })
 
 
 class PullNextCard(APIView):
@@ -311,23 +423,32 @@ class PullNextCard(APIView):
         3. Does the {deckname} deck exist ? continue : 404(deck)
         4. [tmp] Get random card from the deck
     """
-    def get(self, request: Request, format: Any = None) -> Response:
+
+    def get(self, request: Request) -> Response:
         username = request.query_params.get('deck_owner_username')
         deckname = request.query_params.get('deckname')
         # 1:
         jwt_username = request.user.username
         if not jwt_username:
-            return HttpResponse(status=401)
+            return Response(status=401)
         # 2:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            return HttpResponseNotFound(f'{username} user not found')
+            return Response(
+                data={
+                    'message': f'{username} user not found'
+                },
+                status=404)
         # 3:
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
-            return HttpResponseNotFound(f'{deckname} deck not found')
+            return Response(
+                data={
+                    'message': f'{deckname} deck not found'
+                },
+                status=404)
         # 4:
         cards = list(Card.objects.filter(deck=deck))
         if not cards:
@@ -358,7 +479,8 @@ class PostFeedback(APIView):
         5. Does the {card_id} card exist ? continue : 404(card)
         6. Create new Stat(jwt.user, deck) with specified feedback
     """
-    def post(self, request: Request, format: Any = None) -> Response:
+
+    def post(self, request: Request) -> Response:
         deck_owner_username = request.data.get('deck_owner_username')
         deckname = request.data.get('deckname')
         card_id = request.data.get('card_id')
@@ -366,28 +488,43 @@ class PostFeedback(APIView):
         # 1:
         jwt_username = request.user.username
         if not jwt_username:
-            return HttpResponse(status=401)
+            return Response(status=401)
         # 2:
         try:
             jwt_user = User.objects.get(username=jwt_username)
         except User.DoesNotExist:
-            return HttpResponse(status=401)
+            return Response(
+                data={
+                    'message': f'{jwt_username} user not found'
+                },
+                status=404)
         # 3:
         try:
             user = User.objects.get(username=deck_owner_username)
         except User.DoesNotExist:
-            return HttpResponseNotFound(f'{deck_owner_username} user '
-                                         'not found')
+            return Response(
+                data={
+                    'message': f'{deck_owner_username} user not found'
+                },
+                status=404)
         # 4:
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
-            return HttpResponseNotFound(f'{deckname} deck not found')
+            return Response(
+                data={
+                    'message': f'{deckname} deck not found'
+                },
+                status=404)
         # 5:
         try:
             card = Card.objects.get(deck=deck, pk=card_id)
         except Deck.DoesNotExist:
-            return HttpResponseNotFound(f'{card_id} card not found')
+            return Response(
+                data={
+                    'message': f'{card_id} card not found'
+                },
+                status=404)
         # 6:
         stat = Stat(feedback=feedback,
                     owner=jwt_user,

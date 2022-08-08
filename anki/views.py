@@ -31,6 +31,7 @@ from api.settings import JWT_AUTH
 # TODO: consider different error response codes
 # TODO: dont allow non-active users to do much in the app
 #       bc they need to verify email first
+# TODO: add meaningful messages to all responses
 
 
 class SignUp(APIView):
@@ -270,6 +271,7 @@ class GetDeckStats(APIView):
         username = request.query_params.get('username')
         deckname = request.query_params.get('deckname')
         # 1:
+        jwt_user = request.user
         jwt_username = request.user.username
         if not jwt_username:
             return Response(status=401)
@@ -293,7 +295,7 @@ class GetDeckStats(APIView):
                 status=404)
         # 4&5:
         if deck.public or username == jwt_username:
-            stats = Stat.objects.all().filter(owner=jwt_username)
+            stats = Stat.objects.all().filter(owner=jwt_user)
         else:
             return Response(
                 data={

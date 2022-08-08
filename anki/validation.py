@@ -69,14 +69,15 @@ def validate_and_normalize_deck_stuff(data: dict) -> dict:
     if type(deckinfo) != dict or type(cards) != list:
         raise ValidationError('types')
     # 1-depth:
-    if not ({'id', 'name', 'color', 'public', 'description'} <= deckinfo):
+    if not ({'id', 'name', 'color', 'public',
+             'description'} <= deckinfo.keys()):
         raise ValidationError('deck schema')
-    if (type(deckinfo['id']) != str or type(deckinfo['name']) != str or
+    if (type(deckinfo['id']) != int or type(deckinfo['name']) != str or
         type(deckinfo['color']) != str or type(deckinfo['public']) != bool or
             type(deckinfo['description']) != str):
         raise ValidationError('deck types')
     for card in cards:
-        if not ({'id', 'question', 'answer'} <= card):
+        if not ({'id', 'question', 'answer'} <= card.keys()):
             raise ValidationError('card schema')
         if (type(card['id']) != int or type(card['question']) != str or
                 type(card['answer']) != str):
@@ -84,13 +85,13 @@ def validate_and_normalize_deck_stuff(data: dict) -> dict:
     # 2: length limit checks (tmp)
     # deckinfo:
     if (1 > len(deckinfo['name']) > 16 or len(deckinfo['color']) != 7 or
-            len(deckinfo['description']) > 200):
+            len(deckinfo['description']) > 2500):
         raise ValidationError('deck size')
     # cards:
     if len(cards) > 100:
         raise ValidationError('card number')
     for card in cards:
-        if len(card['question']) > 200 or len(card['answer'] > 200):
+        if len(card['question']) > 200 or len(card['answer']) > 200:
             raise ValidationError('card size')
 
     return data

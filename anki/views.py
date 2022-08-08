@@ -380,7 +380,8 @@ class UpdateDeckStuff(APIView):
         # 2:
         try:
             data = validate_and_normalize_deck_stuff(request.data)
-        except ValidationError:
+        except ValidationError as e:
+            print(e)   # TODO: differentiate Response by the message
             return Response(
                 data={
                     'message': 'validation failed'

@@ -91,6 +91,7 @@ class SignUp(APIView):
         #       alongside the limits on database objects, times to
         #       live, and regular object cleaning
         # 4:
+        # TODO: don't return email code (important)
         serializer = UserSerializer(new_user)
         return Response(serializer.data)
 
@@ -145,6 +146,9 @@ class GetMe(APIView):
     Get the user by the provided JWT token.
 
     Endpoint: `api/get-me`
+
+    TODO: don't return too much data bc the email code gets exposed
+          among other things
 
     Input: -
     Logic:

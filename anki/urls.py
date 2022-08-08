@@ -12,7 +12,7 @@ from anki.views import (SignUp,
 
 
 anki_urls = [
-    path('signup', SignUp.as_view()),
+    path('signup/', SignUp.as_view()),
     path('signup-verify', SignUpVerify.as_view()),
     path('get-me', GetMe.as_view()),
     path('get-decks', GetDecks.as_view()),

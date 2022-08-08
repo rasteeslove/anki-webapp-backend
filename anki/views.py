@@ -42,7 +42,7 @@ class SignUp(APIView):
     Input: request.data[username, email, password]
     Logic:
         1. Validate form data and return 400 if not valid
-        2. Create new user object, set active field to false
+        2. Try creating new user object, set active field to false
         3. Email the provided address with the link
            containing the unique code
         4. Return the new user object as response
@@ -51,17 +51,26 @@ class SignUp(APIView):
         # 1:
         try:
             data = validate_and_normalize_signup_form(request.data)
-        except ValidationError:
+        except ValidationError as e:
+            print(e)   # TODO: differentiate Response by the message
             return Response(
                 data={
                     'message': 'validation failed'
                 },
                 status=400
             )
-        username = data.get('username')
-        email = data.get('email')
-        password = data.get('password')
+        username = data['username']
+        email = data['email']
+        password = data['password']
         # 2:
+        # ensure email is unique:
+        if User.objects.filter(email=email).exists():
+            return Response(
+                data={
+                    'message': 'couldn\'t create new user. '
+                               'email not unique'
+                },
+                status=409)
         email_code = get_random_string(length=32)
         try:
             new_user = User.objects.create_user(username=username,
@@ -74,7 +83,7 @@ class SignUp(APIView):
             return Response(
                 data={
                     'message': 'couldn\'t create new user. '
-                               'username or email not unique'
+                               'username not unique'
                 },
                 status=409)
         # 3:

@@ -437,6 +437,16 @@ class UpdateDeckStuff(APIView):
         })
 
 
+class RemoveDeck(APIView):
+    """
+    Remove a deck of a particular name of a particular user.
+
+    Endpoint: `remove-deck?username={username}&deckname={deckname}`
+    """
+    def post(self):
+        pass
+
+
 class PullNextCard(APIView):
     """
     Get a not-exactly-random card from a particular deck.

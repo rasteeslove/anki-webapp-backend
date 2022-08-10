@@ -441,10 +441,46 @@ class RemoveDeck(APIView):
     """
     Remove a deck of a particular name of a particular user.
 
-    Endpoint: `remove-deck?username={username}&deckname={deckname}`
+    Endpoint: `remove-deck/`
+
+    Input: request.data[{
+                      username: str
+                      deckname: str
+                  }]
+    Logic:
+        1. If JWT_AUTH=True, prevent users removing others' decks (401)
+        2. Does the {username} user exist ? continue : 404(user)
+        3. Does the {deckname} deck exist ? continue : 404(deck)
+        4. Remove the {deckname} deck of the {username} user
     """
-    def post(self):
-        pass
+    def post(self, request: Request) -> Response:
+        username = request.data.get('username')
+        deckname = request.data.get('deckname')
+        jwt_username = request.user.username
+        # 1:
+        if JWT_AUTH and username != jwt_username:
+            return Response(status=401)
+        # 2:
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return Response(
+                data={
+                    'message': f'{username} user not found'
+                },
+                status=404)
+        # 3:
+        try:
+            deck = Deck.objects.get(owner=user, name=deckname)
+        except Deck.DoesNotExist:
+            return Response(
+                data={
+                    'message': f'{deckname} deck not found'
+                },
+                status=404)
+        # 4:
+        deck.delete()
+        return Response()
 
 
 class PullNextCard(APIView):

@@ -7,6 +7,7 @@ from anki.views import (SignUp,
                         GetDeckStats,
                         GetDeckStuff,
                         UpdateDeckStuff,
+                        RemoveDeck,
                         PullNextCard,
                         PostFeedback)
 
@@ -20,6 +21,7 @@ anki_urls = [
     path('get-deck-stats', GetDeckStats.as_view()),
     path('get-deck-stuff', GetDeckStuff.as_view()),
     path('update-deck-stuff', UpdateDeckStuff.as_view()),
+    path('remove-deck/', RemoveDeck.as_view()),
     path('pull-next-card', PullNextCard.as_view()),
     path('post-feedback/', PostFeedback.as_view()),
 ]

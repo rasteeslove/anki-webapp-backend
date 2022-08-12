@@ -9,6 +9,7 @@ note: all requests here presume either no auth tokens, or valid JWT
 import random
 
 from django.core.exceptions import ValidationError
+from django.core.mail import send_mail
 from django.db.utils import IntegrityError
 from django.utils.crypto import get_random_string
 
@@ -26,7 +27,7 @@ from anki.serializers import (UserSerializer,
 from anki.validation import (validate_and_normalize_signup_form,
                              validate_and_normalize_deck_stuff)
 
-from api.settings import JWT_AUTH
+from api.settings import JWT_AUTH, SENDER_EMAIL_ADDRESS
 
 # TODO: consider different error response codes
 # TODO: dont allow non-active users to do much in the app
@@ -42,14 +43,19 @@ class SignUp(APIView):
 
     Input: request.data[username, email, password]
     Logic:
-        1. Validate form data and return 400 if not valid
-        2. Try creating new user object, set active field to false
-        3. Email the provided address with the link
+        1. TODO: check the number of non-active users, i.e. awaiting
+                 verification. If >=20, do not process form and inform
+                 the user of the fact
+        2. Validate form data and return 400 if not valid
+        3. Try creating new user object, set active field to false
+        4. Email the provided address with the link
            containing the unique code
-        4. Return the new user object as response
+        5. Return the new user object as response
     """
     def post(self, request: Request) -> Response:
         # 1:
+
+        # 2:
         try:
             data = validate_and_normalize_signup_form(request.data)
         except ValidationError as e:
@@ -63,7 +69,7 @@ class SignUp(APIView):
         username = data['username']
         email = data['email']
         password = data['password']
-        # 2:
+        # 3:
         # ensure email is unique:
         if User.objects.filter(email=email).exists():
             return Response(
@@ -87,12 +93,19 @@ class SignUp(APIView):
                                'username not unique'
                 },
                 status=409)
-        # 3:
-        # TODO: use AWS SES (should be done in the "API safety" PR)
-        #       alongside the limits on database objects, times to
-        #       live, and regular object cleaning
         # 4:
-        # TODO: don't return email code (important)
+        send_mail(
+            'Anki account verification',
+            f'''Hello,
+
+            Your email address is being used to create an anki account for the user "{username}".
+            In order to verify the account, follow the link: https://anki-webapp.vercel.app/auth/verify/{email_code}.
+            You have 24hrs until the link expires.
+            ''',
+            SENDER_EMAIL_ADDRESS,
+            [email]
+        )
+        # 5:
         serializer = UserSerializer(new_user)
         return Response(serializer.data)
 

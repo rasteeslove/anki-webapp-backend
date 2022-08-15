@@ -29,10 +29,11 @@ from anki.validation import (validate_and_normalize_signup_form,
 
 from api.settings import JWT_AUTH, SENDER_EMAIL_ADDRESS
 
-# TODO: consider different error response codes
 # TODO: dont allow non-active users to do much in the app
 #       bc they need to verify email first
-# TODO: add meaningful messages to all responses
+# TODO: add meaningful messages and codes to all responses
+# TODO: use a set of in-app response codes in order for the client
+#       to better understand a situation based on the response
 
 
 class SignUp(APIView):
@@ -43,9 +44,9 @@ class SignUp(APIView):
 
     Input: request.data[username, email, password]
     Logic:
-        1. TODO: check the number of non-active users, i.e. awaiting
-                 verification. If >=20, do not process form and inform
-                 the user of the fact
+        1. Check the number of non-active users, i.e. awaiting
+           verification. If >=LIMIT, do not process form and inform
+           the user of the fact
         2. Validate form data and return 400 if not valid
         3. Try creating new user object, set active field to false
         4. Email the provided address with the link
@@ -54,7 +55,15 @@ class SignUp(APIView):
     """
     def post(self, request: Request) -> Response:
         # 1:
-
+        non_active_users_num = User.objects.filter(active=False).count()
+        if non_active_users_num >= 20:   # TODO CONFIG CONST
+            return Response(
+                data={
+                    'message': 'The queue of users pending verification '
+                               'is full. Try again later.'
+                },
+                status=409
+            )
         # 2:
         try:
             data = validate_and_normalize_signup_form(request.data)
@@ -94,20 +103,31 @@ class SignUp(APIView):
                 },
                 status=409)
         # 4:
-        send_mail(
-            'Anki account verification',
-            f'''Hello,
-
-            Your email address is being used to create an anki account for the user "{username}".
-            In order to verify the account, follow the link: https://anki-webapp.vercel.app/auth/verify/{email_code}.
-            You have 24hrs until the link expires.
-            ''',
-            SENDER_EMAIL_ADDRESS,
-            [email]
-        )
+        try:
+            send_mail(
+                'Anki account verification',
+                f'Hello\n\n,'
+                f'Your email address is being used to '
+                f'create an anki account for the user "{username}".\n'
+                f'In order to verify the account, follow the link: '
+                f'https://anki-webapp.vercel.app/auth/verify/{email_code}.\n'
+                f'You have 24hrs until the link expires.\n\n'
+                f'Best regards,\n'
+                f'Roś',
+                SENDER_EMAIL_ADDRESS,
+                [email]
+            )
+        except Exception as e:
+            print(e)   # TODO: indicate to the user that the email failed
+                       #       to be sent
         # 5:
         serializer = UserSerializer(new_user)
-        return Response(serializer.data)
+        return Response(
+            data={
+                **serializer.data,
+                'message': 'new account created successfully',
+            },
+            status=200)
 
 
 class SignUpVerify(APIView):
@@ -161,9 +181,6 @@ class GetMe(APIView):
 
     Endpoint: `api/get-me`
 
-    TODO: don't return too much data bc the email code gets exposed
-          among other things
-
     Input: -
     Logic:
         1. Get claimed username from the token
@@ -175,12 +192,21 @@ class GetMe(APIView):
         # 1:
         jwt_username = request.user.username
         # 2:
-        if not jwt_username:
-            return Response()  # (EMPTY RESPONSE IF NO TOKEN)
+        if not jwt_username:   # (EMPTY RESPONSE IF NO TOKEN)
+            return Response(
+                data={
+                    'message': 'you are not signed in'
+                },
+                status=200)
         # 3:
         user = User.objects.get(username=jwt_username)
         serializer = UserSerializer(user)
-        return Response(serializer.data)
+        return Response(
+            data={
+                **serializer.data,
+                'message': 'user data retrieved successfully'
+            },
+            status=200)
 
 
 class GetDecks(APIView):
@@ -213,7 +239,12 @@ class GetDecks(APIView):
             decks = (Deck.objects.all().filter(owner=user)
                      .filter(public=True))
         serializer = DeckSerializer(decks, many=True)
-        return Response(serializer.data)
+        return Response(
+            data={
+                **serializer.data,
+                'message': 'decks retrieved successfully'
+            },
+            status=200)
 
 
 class GetDeckInfo(APIView):
@@ -260,7 +291,12 @@ class GetDeckInfo(APIView):
                     },
                     status=404)
         serializer = DeckInfoSerializer(deck)
-        return Response(serializer.data)
+        return Response(
+            data={
+                **serializer.data,
+                'message': 'deck info retrieved successfully'
+            },
+            status=200)
 
 
 class GetDeckStats(APIView):
@@ -287,7 +323,12 @@ class GetDeckStats(APIView):
         jwt_user = request.user
         jwt_username = request.user.username
         if not jwt_username:
-            return Response(status=401)
+            return Response(
+                data={
+                    'message': 'you should be signed in to access '
+                               'the resource'
+                },
+                status=401)
         # 2:
         try:
             user = User.objects.get(username=username)
@@ -316,7 +357,12 @@ class GetDeckStats(APIView):
                 },
                 status=404)
         serializer = StatSerializer(stats, many=True)
-        return Response(serializer.data)
+        return Response(
+            data={
+                **serializer.data,
+                'message': 'deck stats retrieved successfully'
+            },
+            status=200)
 
 
 class GetDeckStuff(APIView):
@@ -340,10 +386,20 @@ class GetDeckStuff(APIView):
         # 1:
         jwt_username = request.user.username
         if not jwt_username:
-            return Response(status=401)
+            return Response(
+                data={
+                    'message': 'you should be signed in to access '
+                               'the resource'
+                },
+                status=401)
         # 2:
         if username != jwt_username:
-            return Response(status=401)
+            return Response(
+                data={
+                    'message': 'access denied because '
+                               'you do not own this resource'
+                },
+                status=401)
         # 3:
         user = request.user
         try:
@@ -357,10 +413,13 @@ class GetDeckStuff(APIView):
         cards = Card.objects.filter(deck=deck)
         deck_serializer = DeckInfoSerializer(deck)
         card_serializer = CardSerializer(cards, many=True)
-        return Response({
-            'deck': deck_serializer.data,
-            'cards': card_serializer.data
-        })
+        return Response(
+            data={
+                'deck': deck_serializer.data,
+                'cards': card_serializer.data,
+                'message': 'deck stuff retrieved successfully'
+            },
+            status=200)
 
 
 class UpdateDeckStuff(APIView):
@@ -380,16 +439,22 @@ class UpdateDeckStuff(APIView):
     Logic:
         1. Block attempts to update user data by anyone other than them
            (irregardless of JWT_AUTH)
-        2. Validate the received deck stuff
-        3. Process and modify the database objects
-        4. Return the updated deck stuff
+        2. Deny non-active users
+        3. Validate the received deck stuff
+        4. Process and modify the database objects
+        5. Return the updated deck stuff
     """
     def post(self, request: Request) -> Response:
         # 1:
         username = request.query_params.get('username')
         jwt_username = request.user.username
         if username != jwt_username:
-            return Response(status=401)
+            return Response(
+                data={
+                    'message': 'access denied because '
+                               'you do not own this resource'
+                },
+                status=401)
         # 2:
         try:
             data = validate_and_normalize_deck_stuff(request.data)
@@ -444,10 +509,13 @@ class UpdateDeckStuff(APIView):
         cards = Card.objects.filter(deck=deck)
         deck_serializer = DeckInfoSerializer(deck)
         card_serializer = CardSerializer(cards, many=True)
-        return Response({
-            'deck': deck_serializer.data,
-            'cards': card_serializer.data
-        })
+        return Response(
+            data={
+                'deck': deck_serializer.data,
+                'cards': card_serializer.data,
+                'message': 'deck stuff updated successfully'
+            },
+            status=200)
 
 
 class RemoveDeck(APIView):
@@ -472,7 +540,12 @@ class RemoveDeck(APIView):
         jwt_username = request.user.username
         # 1:
         if JWT_AUTH and username != jwt_username:
-            return Response(status=401)
+            return Response(
+                data={
+                    'message': 'access denied because '
+                               'you do not own this resource'
+                },
+                status=401)
         # 2:
         try:
             user = User.objects.get(username=username)
@@ -493,7 +566,11 @@ class RemoveDeck(APIView):
                 status=404)
         # 4:
         deck.delete()
-        return Response()
+        return Response(
+            data={
+                'message': 'deck removed successfully'
+            },
+            status=200)
 
 
 class PullNextCard(APIView):
@@ -509,6 +586,7 @@ class PullNextCard(APIView):
     Endpoint: `pull-next-card?deck_owner_username={username}&deckname={deckname}`
 
     # TODO: maybe change logic to enable JWT_AUTH=False tests
+    # TODO (important): account for public/private decks
 
     Input: request.query_params[username, deckname]
     Logic:
@@ -523,7 +601,12 @@ class PullNextCard(APIView):
         # 1:
         jwt_username = request.user.username
         if not jwt_username:
-            return Response(status=401)
+            return Response(
+                data={
+                    'message': 'you should be signed in to access '
+                               'the resource'
+                },
+                status=401)
         # 2:
         try:
             user = User.objects.get(username=username)

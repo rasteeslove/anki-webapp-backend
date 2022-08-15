@@ -31,7 +31,6 @@ from api.settings import JWT_AUTH, SENDER_EMAIL_ADDRESS
 
 # TODO: dont allow non-active users to do much in the app
 #       bc they need to verify email first
-# TODO: add meaningful messages and codes to all responses
 # TODO: use a set of in-app response codes in order for the client
 #       to better understand a situation based on the response
 
@@ -62,8 +61,7 @@ class SignUp(APIView):
                     'message': 'The queue of users pending verification '
                                'is full. Try again later.'
                 },
-                status=409
-            )
+                status=409)
         # 2:
         try:
             data = validate_and_normalize_signup_form(request.data)
@@ -73,8 +71,7 @@ class SignUp(APIView):
                 data={
                     'message': 'validation failed'
                 },
-                status=400
-            )
+                status=400)
         username = data['username']
         email = data['email']
         password = data['password']
@@ -464,8 +461,7 @@ class UpdateDeckStuff(APIView):
                 data={
                     'message': 'validation failed'
                 },
-                status=400
-            )
+                status=400)
         # 3:
         deckinfo = data.get('deck')
         cards = data.get('cards')
@@ -628,11 +624,20 @@ class PullNextCard(APIView):
         # 4:
         cards = list(Card.objects.filter(deck=deck))
         if not cards:
-            return Response('no cards in deck')
+            return Response(
+                data={
+                    'message': 'no cards in deck'
+                },
+                status=200)
         else:
             random_card = random.choice(cards)
             card_serializer = CardSerializer(random_card)
-            return Response(card_serializer.data)
+            return Response(
+                data={
+                    **card_serializer.data,
+                    'message': 'card pulled successfully'
+                },
+                status=200)
 
 
 class PostFeedback(APIView):
@@ -644,6 +649,7 @@ class PostFeedback(APIView):
 
     TODO: change the protocol to also include the username of the one
           leaving the feedback to enable JWT_AUTH=False tests later
+    TODO (important): account for public/private decks
 
     Input: request.data[{
                       deck_owner_username: string
@@ -668,7 +674,12 @@ class PostFeedback(APIView):
         # 1:
         jwt_username = request.user.username
         if not jwt_username:
-            return Response(status=401)
+            return Response(
+                data={
+                    'message': 'you should be signed in to access '
+                               'the resource'
+                },
+                status=401)
         jwt_user = request.user
         # 2:
         try:
@@ -702,4 +713,8 @@ class PostFeedback(APIView):
                     owner=jwt_user,
                     card=card)
         stat.save()
-        return Response()
+        return Response(
+            data={
+                'message': 'card feedback added successfully'
+            },
+            status=200)

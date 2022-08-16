@@ -26,13 +26,15 @@ from anki.serializers import (UserSerializer,
                               StatSerializer)
 from anki.validation import (validate_and_normalize_signup_form,
                              validate_and_normalize_deck_stuff)
+from anki.errors import messages
+from anki.config import (ACCOUNT_VERIFICATION_QUEUE_LIMIT as QUEUE_LIMIT,
+                         USER_DECK_LIMIT,
+                         DECK_CARD_LIMIT)
 
 from api.settings import JWT_AUTH, SENDER_EMAIL_ADDRESS
 
 # TODO: dont allow non-active users to do much in the app
 #       bc they need to verify email first
-# TODO: use a set of in-app response codes in order for the client
-#       to better understand a situation based on the response
 
 
 class SignUp(APIView):
@@ -47,7 +49,8 @@ class SignUp(APIView):
            verification. If >=LIMIT, do not process form and inform
            the user of the fact
         2. Validate form data and return 400 if not valid
-        3. Try creating new user object, set active field to false
+        3. Try creating new user object with unique email and username,
+           set active field to false
         4. Email the provided address with the link
            containing the unique code
         5. Return the new user object as response
@@ -55,21 +58,21 @@ class SignUp(APIView):
     def post(self, request: Request) -> Response:
         # 1:
         non_active_users_num = User.objects.filter(active=False).count()
-        if non_active_users_num >= 20:   # TODO CONFIG CONST
+        if non_active_users_num >= QUEUE_LIMIT:
             return Response(
                 data={
-                    'message': 'The queue of users pending verification '
-                               'is full. Try again later.'
+                    'code': 'QUEUE',
+                    'message': messages['QUEUE'],
                 },
                 status=409)
         # 2:
         try:
             data = validate_and_normalize_signup_form(request.data)
-        except ValidationError as e:
-            print(e)   # TODO: differentiate Response by the message
+        except ValidationError:
             return Response(
                 data={
-                    'message': 'validation failed'
+                    'code': 'VALIDATION',
+                    'message': messages['VALIDATION'],
                 },
                 status=400)
         username = data['username']
@@ -80,11 +83,13 @@ class SignUp(APIView):
         if User.objects.filter(email=email).exists():
             return Response(
                 data={
-                    'message': 'couldn\'t create new user. '
-                               'email not unique'
+                    'code': 'EMAIL_CONFLICT',
+                    'message': messages['EMAIL_CONFLICT'],
                 },
                 status=409)
+        # generate the email code for later verification:
         email_code = get_random_string(length=32)
+        # try creating the account:
         try:
             new_user = User.objects.create_user(username=username,
                                                 email=email,
@@ -95,11 +100,12 @@ class SignUp(APIView):
         except IntegrityError:
             return Response(
                 data={
-                    'message': 'couldn\'t create new user. '
-                               'username not unique'
+                    'code': 'UNAME_CONFLICT',
+                    'message': messages['UNAME_CONFLICT'],
                 },
                 status=409)
         # 4:
+        emailing_succeeded = False
         try:
             send_mail(
                 'Anki account verification',
@@ -114,15 +120,18 @@ class SignUp(APIView):
                 SENDER_EMAIL_ADDRESS,
                 [email]
             )
+            emailing_succeeded = True
         except Exception as e:
-            print(e)   # TODO: indicate to the user that the email failed
-                       #       to be sent
+            print(f'Emailing error: {e}')
         # 5:
         serializer = UserSerializer(new_user)
         return Response(
             data={
                 **serializer.data,
-                'message': 'new account created successfully',
+                'code': 'OKAY' if emailing_succeeded else 'MAIL_NOT_SENT',
+                'message': (messages['OKAY']
+                            if emailing_succeeded else
+                            messages['MAIL_NOT_SENT']),
             },
             status=200)
 
@@ -135,52 +144,64 @@ class SignUpVerify(APIView):
 
     Input: request.query_params[code]
     Logic:
-        1. Try finding user by the code
+        1. Validate code: it should be a string of 32 characters
+        2. Try finding user by the code
              SUCCESS -> continue
              FAILURE -> 404(user)
-        2a. If user's active field is set to true
+        3a. If user's active field is set to true
            return 200("already verified")
-        2b. If user's active field is set to false
+        3b. If user's active field is set to false
            set it to true and return 200("verified")
     """
     def get(self, request: Request) -> Response:
         code = request.query_params.get('code')
         # 1:
+        if not code or type(code) != str or len(code) != 32:
+            return Response(
+                data={
+                    'code': 'VALIDATION',
+                    'message': messages['VALIDATION'],
+                },
+                status=400)
+        # 2:
         try:
             user = User.objects.get(last_name=code)
             if user.active:
-                # 2a:
+                # 3a:
                 return Response(
                     data={
-                        'message': 'already verified'
+                        'code': 'VERIFIED_ALREADY',
+                        'message': messages['VERIFIED_ALREADY'],
                     },
                     status=200)
             else:
-                # 2b:
+                # 3b:
                 user.active = True
                 user.save()
                 return Response(
                     data={
-                        'message': 'verified'
+                        'code': 'VERIFIED',
+                        'message': messages['VERIFIED'],
                     },
                     status=200)
         except User.DoesNotExist:
             return Response(
                 data={
-                    'message': 'code not valid for any user'
+                    'code': 'AV_CODE_NOT_VALID',
+                    'message': messages['AV_CODE_NOT_VALID'],
                 },
                 status=404)
 
 
 class GetMe(APIView):
     """
-    Get the user by the provided JWT token.
+    Get the user by the JWT token.
 
     Endpoint: `api/get-me`
 
     Input: -
     Logic:
-        1. Get claimed username from the token
+        1. Get claimed identity from the token
         2. Anonymous user -> empty response   TODO: maybe consider
                                                     different approach
         3. Return user object
@@ -192,7 +213,8 @@ class GetMe(APIView):
         if not jwt_username:   # (EMPTY RESPONSE IF NO TOKEN)
             return Response(
                 data={
-                    'message': 'you are not signed in'
+                    'code': 'NOT_SIGNED_IN',
+                    'message': messages['NOT_SIGNED_IN'],
                 },
                 status=200)
         # 3:
@@ -201,7 +223,8 @@ class GetMe(APIView):
         return Response(
             data={
                 **serializer.data,
-                'message': 'user data retrieved successfully'
+                'code': 'SIGNED_IN',
+                'message': messages['SIGNED_IN'],
             },
             status=200)
 
@@ -214,21 +237,32 @@ class GetDecks(APIView):
 
     Input: request.query_params[username]
     Logic:
-        1. Does the {username} user exist ? continue : 404 
-        2. username <-> jwt ? send all decks : send public decks
+        1. Validate username: it should be a string
+        2. Does the {username} user exist ? continue : 404
+        3. username <-> jwt ? send all decks : send public decks
+           * if JWT_AUTH=False, send all decks
     """
     def get(self, request: Request) -> Response:
         username = request.query_params.get('username')
         # 1:
+        if not username or type(username) != str:
+            return Response(
+                data={
+                    'code': 'VALIDATION',
+                    'message': messages['VALIDATION'],
+                },
+                status=400)
+        # 2:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
             return Response(
                 data={
-                    'message': f'{username} user not found'
+                    'code': 'USER_NOT_FOUND',
+                    'message': messages['USER_NOT_FOUND'],
                 },
                 status=404)
-        # 2:
+        # 3:
         jwt_username = request.user.username
         if not JWT_AUTH or username == jwt_username:
             decks = Deck.objects.all().filter(owner=user)
@@ -239,7 +273,8 @@ class GetDecks(APIView):
         return Response(
             data={
                 **serializer.data,
-                'message': 'decks retrieved successfully'
+                'code': 'OKAY',
+                'message': messages['OKAY'],
             },
             status=200)
 
@@ -252,46 +287,61 @@ class GetDeckInfo(APIView):
 
     Input: request.query_params[username, deckname]
     Logic:
-        1. Does the {username} user exist ? continue : 404(user) 
-        2. Does the {deckname} deck exist ? continue : 404(deck) 
-        3. Is the deck public ? send deck info : continue
-        4. username <-> jwt ? send deck info : 404(deck)
+        1. Validate username and deckname: both should be strings
+        2. Does the {username} user exist ? continue : 404(user)
+        3. Does the {deckname} deck exist ? continue : 404(deck)
+        4. Is the deck public or JWT_AUTH=False ? send deck info :
+                                                  continue
+        5. username <-> jwt ? send deck info : 404(deck)
     """
     def get(self, request: Request) -> Response:
         username = request.query_params.get('username')
         deckname = request.query_params.get('deckname')
         # 1:
+        if (not username or type(username) != str
+                or not deckname or type(deckname) != str):
+            return Response(
+                data={
+                    'code': 'VALIDATION',
+                    'messages': messages['VALIDATION'],
+                },
+                status=400)
+        # 2:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
             return Response(
                 data={
-                    'message': f'{username} user not found'
+                    'code': 'USER_NOT_FOUND',
+                    'message': messages['USER_NOT_FOUND'],
                 },
                 status=404)
-        # 2:
+        # 3:
         try:
             deck: Deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
             return Response(
                 data={
-                    'message': f'{deckname} deck not found'
+                    'code': 'DECK_NOT_FOUND',
+                    'message': messages['DECK_NOT_FOUND'],
                 },
                 status=404)
-        # 3&4:
+        # 4&5:
         if JWT_AUTH and not deck.public:
             jwt_username = request.user.username
             if username != jwt_username:
                 return Response(
                     data={
-                        'message': f'{deckname} deck not found'
+                        'code': 'DECK_NOT_FOUND',
+                        'message': messages['DECK_NOT_FOUND'],
                     },
                     status=404)
         serializer = DeckInfoSerializer(deck)
         return Response(
             data={
                 **serializer.data,
-                'message': 'deck info retrieved successfully'
+                'code': 'OKAY',
+                'message': messages['OKAY'],
             },
             status=200)
 
@@ -307,57 +357,71 @@ class GetDeckStats(APIView):
 
     Input: request.query_params[username, deckname]
     Logic:
-        1. no jwt -> no stats (401) (irregardless of JWT_AUTH)
-        2. Does the {username} user exist ? continue : 404(user)
-        3. Does the {deckname} deck exist ? continue : 404(deck)
-        4. Is the deck public ? get the user(jwt) stats : continue
-        5. username <-> jwt ? get user(jwt) stats : 404(deck)
+        1. Validate username and deckname: both should be strings
+        2. no jwt -> no stats (401) (irregardless of JWT_AUTH)
+        3. Does the {username} user exist ? continue : 404(user)
+        4. Does the {deckname} deck exist ? continue : 404(deck)
+        5. Is the deck public ? get the user(jwt) stats : continue
+        6. username <-> jwt ? get user(jwt) stats : 404(deck)
     """
     def get(self, request: Request) -> Response:
         username = request.query_params.get('username')
         deckname = request.query_params.get('deckname')
         # 1:
+        if (not username or type(username) != str
+                or not deckname or type(deckname) != str):
+            return Response(
+                data={
+                    'code': 'VALIDATION',
+                    'messages': messages['VALIDATION'],
+                },
+                status=400)
+        # 2:
         jwt_user = request.user
         jwt_username = request.user.username
         if not jwt_username:
             return Response(
                 data={
-                    'message': 'you should be signed in to access '
-                               'the resource'
+                    'code': 'AUTH_REQUIRED',
+                    'message': messages['AUTH_REQUIRED'],
                 },
                 status=401)
-        # 2:
+        # 3:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
             return Response(
                 data={
-                    'message': f'{username} user not found'
+                    'code': 'USER_NOT_FOUND',
+                    'message': messages['USER_NOT_FOUND'],
                 },
                 status=404)
-        # 3:
+        # 4:
         try:
             deck: Deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
             return Response(
                 data={
-                    'message': f'{deckname} deck not found'
+                    'code': 'DECK_NOT_FOUND',
+                    'message': messages['DECK_NOT_FOUND'],
                 },
                 status=404)
-        # 4&5:
+        # 5&6:
         if deck.public or username == jwt_username:
             stats = Stat.objects.all().filter(owner=jwt_user)
         else:
             return Response(
                 data={
-                    'message': f'{deckname} deck not found'
+                    'code': 'DECK_NOT_FOUND',
+                    'message': messages['DECK_NOT_FOUND'],
                 },
                 status=404)
         serializer = StatSerializer(stats, many=True)
         return Response(
             data={
                 **serializer.data,
-                'message': 'deck stats retrieved successfully'
+                'code': 'OKAY',
+                'message': messages['OKAY'],
             },
             status=200)
 
@@ -373,38 +437,49 @@ class GetDeckStuff(APIView):
 
     Input: request.query_params[username, deckname]
     Logic:
-        1. no jwt -> no stuff (401) (irregardless of JWT_AUTH)
-        2. username <-> jwt ? continue : 401 error
-        3. Does the {deckname} deck exist ? return stuff : 404(deck)
+        1. Validate username and deckname: both should be strings
+        2. no jwt -> no stuff (401) (irregardless of JWT_AUTH)
+        3. username <-> jwt ? continue : 401 error
+        4. Does the {deckname} deck exist ? return stuff : 404(deck)
     """
     def get(self, request: Request) -> Response:
         username = request.query_params.get('username')
         deckname = request.query_params.get('deckname')
         # 1:
+        if (not username or type(username) != str
+                or not deckname or type(deckname) != str):
+            return Response(
+                data={
+                    'code': 'VALIDATION',
+                    'messages': messages['VALIDATION'],
+                },
+                status=400)
+        # 2:
         jwt_username = request.user.username
         if not jwt_username:
             return Response(
                 data={
-                    'message': 'you should be signed in to access '
-                               'the resource'
-                },
-                status=401)
-        # 2:
-        if username != jwt_username:
-            return Response(
-                data={
-                    'message': 'access denied because '
-                               'you do not own this resource'
+                    'code': 'AUTH_REQUIRED',
+                    'message': messages['AUTH_REQUIRED'],
                 },
                 status=401)
         # 3:
+        if username != jwt_username:
+            return Response(
+                data={
+                    'code': 'ACCESS_DENIED',
+                    'message': messages['ACCESS_DENIED'],
+                },
+                status=401)
+        # 4:
         user = request.user
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
             return Response(
                 data={
-                    'message': f'{deckname} deck not found'
+                    'code': 'DECK_NOT_FOUND',
+                    'message': messages['DECK_NOT_FOUND'],
                 },
                 status=404)
         cards = Card.objects.filter(deck=deck)
@@ -414,7 +489,8 @@ class GetDeckStuff(APIView):
             data={
                 'deck': deck_serializer.data,
                 'cards': card_serializer.data,
-                'message': 'deck stuff retrieved successfully'
+                'code': 'OKAY',
+                'message': messages['OKAY'],
             },
             status=200)
 
@@ -434,38 +510,65 @@ class UpdateDeckStuff(APIView):
                       cards: dict[]
                   }]
     Logic:
-        1. Block attempts to update user data by anyone other than them
+        1. Validate username: it should be a string
+        2. Block attempts to update user data by anyone other than them
            (irregardless of JWT_AUTH)
-        2. Deny non-active users
-        3. Validate the received deck stuff
-        4. Process and modify the database objects
-        5. Return the updated deck stuff
+        3. Deny non-active users this action
+        4. Validate the received deck stuff
+        5. Process and modify the database objects
+        6. Return the updated deck stuff
     """
     def post(self, request: Request) -> Response:
-        # 1:
         username = request.query_params.get('username')
+        # 1:
+        if not username or type(username) != str:
+            return Response(
+                data={
+                    'code': 'VALIDATION',
+                    'messages': messages['VALIDATION'],
+                },
+                status=400)
+        # 2:
         jwt_username = request.user.username
+        # apprehend non-auth'd users:
+        if not jwt_username:
+            return Response(
+                data={
+                    'code': 'AUTH_REQUIRED',
+                    'message': messages['AUTH_REQUIRED'],
+                },
+                status=401)
+        # apprehend non-owner users:
         if username != jwt_username:
             return Response(
                 data={
-                    'message': 'access denied because '
-                               'you do not own this resource'
+                    'code': 'ACCESS_DENIED',
+                    'message': messages['ACCESS_DENIED'],
                 },
                 status=401)
-        # 2:
-        try:
-            data = validate_and_normalize_deck_stuff(request.data)
-        except ValidationError as e:
-            print(e)   # TODO: differentiate Response by the message
+        # 3:
+        user = request.user
+        if not user.active:
             return Response(
                 data={
-                    'message': 'validation failed'
+                    'code': 'VERIFICATION_REQUIRED',
+                    'message': messages['VERIFICATION_REQUIRED'],
+                },
+                status=401)
+        # 4:
+        try:
+            data = validate_and_normalize_deck_stuff(request.data)
+        except ValidationError:
+            return Response(
+                data={
+                    'code': 'VALIDATION',
+                    'messages': messages['VALIDATION'],
                 },
                 status=400)
-        # 3:
+        # 5:
         deckinfo = data.get('deck')
         cards = data.get('cards')
-        user = request.user
+        # update deck:
         try:
             deck = Deck.objects.get(owner=user, pk=deckinfo['id'])
             deck.name = deckinfo['name']
@@ -475,6 +578,7 @@ class UpdateDeckStuff(APIView):
             deck = Deck(name=deckinfo['name'], color=deckinfo['color'],
                         public=deckinfo['public'], owner=user)
         deck.save()
+        # update description:
         try:
             description = DeckDescription.objects.get(deck=deck)
             description.description = deckinfo['description']
@@ -482,7 +586,7 @@ class UpdateDeckStuff(APIView):
             description = DeckDescription(description=deckinfo['description'],
                                           deck=deck)
         description.save()
-        # cards:
+        # update cards:
         # A: remove cards with ids not present in request.data.cards
         request_cards_ids = [card['id'] for card in cards]
         db_cards = Card.objects.filter(deck=deck)
@@ -500,7 +604,7 @@ class UpdateDeckStuff(APIView):
                                   answer=card['answer'],
                                   deck=deck)
             card_in_db.save()
-        # 4:
+        # 6:
         deck = Deck.objects.get(name=deckinfo['name'], owner=user)
         cards = Card.objects.filter(deck=deck)
         deck_serializer = DeckInfoSerializer(deck)
@@ -509,7 +613,8 @@ class UpdateDeckStuff(APIView):
             data={
                 'deck': deck_serializer.data,
                 'cards': card_serializer.data,
-                'message': 'deck stuff updated successfully'
+                'code': 'OKAY',
+                'message': messages['OKAY'],
             },
             status=200)
 
@@ -525,46 +630,75 @@ class RemoveDeck(APIView):
                       deckname: str
                   }]
     Logic:
-        1. If JWT_AUTH=True, prevent users removing others' decks (401)
-        2. Does the {username} user exist ? continue : 404(user)
-        3. Does the {deckname} deck exist ? continue : 404(deck)
-        4. Remove the {deckname} deck of the {username} user
+        1. Validate username and deckname: both should be strings
+        2. If JWT_AUTH=True, prevent users removing others' decks (401)
+        3. Deny non-active users this action
+        4. Does the {username} user exist ? continue : 404(user)
+        5. Does the {deckname} deck exist ? continue : 404(deck)
+        6. Remove the {deckname} deck of the {username} user
     """
     def post(self, request: Request) -> Response:
         username = request.data.get('username')
         deckname = request.data.get('deckname')
-        jwt_username = request.user.username
         # 1:
+        if (not username or type(username) != str or
+                not deckname or type(deckname) != str):
+            return Response(
+                data={
+                    'code': 'VALIDATION',
+                    'message': messages['VALIDATION'],
+                },
+                status=400)
+        # 2:
+        jwt_username = request.user.username
+        if JWT_AUTH and not jwt_username:
+            return Response(
+                data={
+                    'code': 'AUTH_REQUIRED',
+                    'message': messages['AUTH_REQUIRED'],
+                },
+                status=401)
         if JWT_AUTH and username != jwt_username:
             return Response(
                 data={
-                    'message': 'access denied because '
-                               'you do not own this resource'
+                    'code': 'ACCESS_DENIED',
+                    'message': messages['ACCESS_DENIED'],
                 },
                 status=401)
-        # 2:
+        # 3:
+        if not request.user.active:
+            return Response(
+                data={
+                    'code': 'VERIFICATION_REQUIRED',
+                    'message': messages['VERIFICATION_REQUIRED'],
+                },
+                status=401)
+        # 4:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
             return Response(
                 data={
-                    'message': f'{username} user not found'
+                    'code': 'USER_NOT_FOUND',
+                    'message': messages['USER_NOT_FOUND'],
                 },
                 status=404)
-        # 3:
+        # 5:
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
             return Response(
                 data={
-                    'message': f'{deckname} deck not found'
+                    'code': 'DECK_NOT_FOUND',
+                    'message': messages['DECK_NOT_FOUND'],
                 },
                 status=404)
-        # 4:
+        # 6:
         deck.delete()
         return Response(
             data={
-                'message': 'deck removed successfully'
+                'code': 'OKAY',
+                'message': messages['OKAY'],
             },
             status=200)
 
@@ -582,51 +716,73 @@ class PullNextCard(APIView):
     Endpoint: `pull-next-card?deck_owner_username={username}&deckname={deckname}`
 
     # TODO: maybe change logic to enable JWT_AUTH=False tests
-    # TODO (important): account for public/private decks
 
     Input: request.query_params[username, deckname]
     Logic:
-        1. no jwt -> no stuff (401) (irregardless of JWT_AUTH)
-        2. Does the {username} user exist ? continue : 404(user)
-        3. Does the {deckname} deck exist ? continue : 404(deck)
-        4. [tmp] Get random card from the deck
+        1. Validate username and deckname: both should be strings
+        2. no jwt -> no stuff (401) (irregardless of JWT_AUTH)
+        3. Does the {username} user exist ? continue : 404(user)
+        4. Does the {deckname} deck exist ? continue : 404(deck)
+        5. Check if deck visibility allows the requesting party to pull
+           cards
+        6. [tmp] Get RANDOM card from the deck
     """
     def get(self, request: Request) -> Response:
         username = request.query_params.get('deck_owner_username')
         deckname = request.query_params.get('deckname')
         # 1:
+        if (not username or type(username) != str or
+                not deckname or type(deckname) != str):
+            return Response(
+                data={
+                    'code': 'VALIDATION',
+                    'message': messages['VALIDATION'],
+                },
+                status=401)
+        # 2:
         jwt_username = request.user.username
         if not jwt_username:
             return Response(
                 data={
-                    'message': 'you should be signed in to access '
-                               'the resource'
+                    'code': 'AUTH_REQUIRED',
+                    'message': messages['AUTH_REQUIRED'],
                 },
                 status=401)
-        # 2:
+        # 3:
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
             return Response(
                 data={
-                    'message': f'{username} user not found'
+                    'code': 'USER_NOT_FOUND',
+                    'message': messages['USER_NOT_FOUND'],
                 },
                 status=404)
-        # 3:
+        # 4:
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
             return Response(
                 data={
-                    'message': f'{deckname} deck not found'
+                    'code': 'DECK_NOT_FOUND',
+                    'message': messages['DECK_NOT_FOUND'],
                 },
                 status=404)
-        # 4:
+        # 5:
+        if jwt_username != username and not deck.public:
+            return Response(
+                data={
+                    'code': 'DECK_NOT_FOUND',
+                    'message': messages['DECK_NOT_FOUND'],
+                },
+                status=404)
+        # 6:
         cards = list(Card.objects.filter(deck=deck))
         if not cards:
             return Response(
                 data={
-                    'message': 'no cards in deck'
+                    'code': 'NO_CARDS_IN_DECK',
+                    'message': messages['NO_CARDS_IN_DECK'],
                 },
                 status=200)
         else:
@@ -635,7 +791,8 @@ class PullNextCard(APIView):
             return Response(
                 data={
                     **card_serializer.data,
-                    'message': 'card pulled successfully'
+                    'code': 'OKAY',
+                    'message': messages['OKAY'],
                 },
                 status=200)
 
@@ -649,7 +806,7 @@ class PostFeedback(APIView):
 
     TODO: change the protocol to also include the username of the one
           leaving the feedback to enable JWT_AUTH=False tests later
-    TODO (important): account for public/private decks
+    TODO: add validation
 
     Input: request.data[{
                       deck_owner_username: string
@@ -660,11 +817,14 @@ class PostFeedback(APIView):
     Logic:
         1. no jwt -> no posting feedback (401) (irregardless of
                                                 JWT_AUTH)
-        2. Does the {deck_owner_username} user exist ? continue
+        2. Deny non-active users this action
+        3. Does the {deck_owner_username} user exist ? continue
                                                      : 404(user)
-        3. Does the {deckname} deck exist ? continue : 404(deck)
-        4. Does the {card_id} card exist ? continue : 404(card)
-        5. Create new Stat(jwt.user, deck) with specified feedback
+        4. Does the {deckname} deck exist ? continue : 404(deck)
+        5. Does the {card_id} card exist ? continue : 404(card)
+        6. Check if deck visibility allows the requesting party to post
+           feedback
+        7. Create new Stat(jwt.user, deck) with specified feedback
     """
     def post(self, request: Request) -> Response:
         deck_owner_username = request.data.get('deck_owner_username')
@@ -676,45 +836,65 @@ class PostFeedback(APIView):
         if not jwt_username:
             return Response(
                 data={
-                    'message': 'you should be signed in to access '
-                               'the resource'
+                    'code': 'AUTH_REQUIRED',
+                    'message': messages['AUTH_REQUIRED'],
                 },
                 status=401)
         jwt_user = request.user
         # 2:
+        if not jwt_user.active:
+            return Response(
+                data={
+                    'code': 'VERIFICATION_REQUIRED',
+                    'message': messages['VERIFICATION_REQUIRED'],
+                },
+                status=401)
+        # 3:
         try:
             user = User.objects.get(username=deck_owner_username)
         except User.DoesNotExist:
             return Response(
                 data={
-                    'message': f'{deck_owner_username} user not found'
+                    'code': 'USER_NOT_FOUND',
+                    'message': messages['USER_NOT_FOUND'],
                 },
                 status=404)
-        # 3:
+        # 4:
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
             return Response(
                 data={
-                    'message': f'{deckname} deck not found'
+                    'code': 'DECK_NOT_FOUND',
+                    'message': messages['DECK_NOT_FOUND'],
                 },
                 status=404)
-        # 4:
+        # 5:
+        if jwt_username != deck_owner_username and not deck.public:
+            return Response(
+                data={
+                    'code': 'DECK_NOT_FOUND',
+                    'message': messages['DECK_NOT_FOUND'],
+                },
+                status=404)
+        # 6:
         try:
             card = Card.objects.get(deck=deck, pk=card_id)
         except Deck.DoesNotExist:
             return Response(
                 data={
-                    'message': f'{card_id} card not found'
+                    'code': 'CARD_NOT_FOUND',
+                    'message': messages['CARD_NOT_FOUND'],
                 },
                 status=404)
-        # 5:
+        # 7:
         stat = Stat(feedback=feedback,
                     owner=jwt_user,
                     card=card)
         stat.save()
         return Response(
             data={
-                'message': 'card feedback added successfully'
+                'code': 'OKAY',
+                'message': messages['OKAY'],
             },
             status=200)

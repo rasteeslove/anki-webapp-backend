@@ -39,7 +39,8 @@ messages = {
     'NOT_SIGNED_IN': 'You are not signed in.',
     'SIGNED_IN': 'You are signed in.',
     # Messages for when changing database data:
-    '': '',
+    'TOO_MUCH_DATA': 'Cannot create new data in the database. '
+                     'Too many instances of a model exist already.',
     # Messages for train mode:
     'NO_CARDS_IN_DECK': 'There are no cards in deck.',
     'CARD_NOT_FOUND': 'Card with such id is not found.',

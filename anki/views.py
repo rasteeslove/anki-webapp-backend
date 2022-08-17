@@ -29,7 +29,7 @@ from anki.validation import (validate_and_normalize_signup_form,
 from anki.errors import messages
 from anki.config import (ACCOUNT_VERIFICATION_QUEUE_LIMIT as QUEUE_LIMIT,
                          USER_DECK_LIMIT,
-                         DECK_CARD_LIMIT)
+                         USER_CARD_STAT_LIMIT)
 
 from api.settings import JWT_AUTH, SENDER_EMAIL_ADDRESS
 
@@ -512,7 +512,8 @@ class UpdateDeckStuff(APIView):
            (irregardless of JWT_AUTH)
         3. Deny non-active users this action
         4. Validate the received deck stuff
-        5. Process and modify the database objects
+        5. Process and modify the database objects.
+           If the number of decks is max, don't allow creating new ones
         6. Return the updated deck stuff
     """
     def post(self, request: Request) -> Response:
@@ -573,6 +574,14 @@ class UpdateDeckStuff(APIView):
                 deck.color = deckinfo['color']
                 deck.public = deckinfo['public']
             except Deck.DoesNotExist:
+                deck_number = Deck.objects.filter(owner=user).count()
+                if deck_number >= USER_DECK_LIMIT:
+                    return Response(
+                        data={
+                            'code': 'TOO_MUCH_DATA',
+                            'message': messages['TOO_MUCH_DATA'],
+                        },
+                        status=400)
                 deck = Deck(name=deckinfo['name'], color=deckinfo['color'],
                             public=deckinfo['public'], owner=user)
             deck.save()
@@ -825,6 +834,8 @@ class PostFeedback(APIView):
         6. Check if deck visibility allows the requesting party to post
            feedback
         7. Create new Stat(jwt.user, deck) with specified feedback
+           If the number of user stats on card is max, delete
+           the oldest one
     """
     def post(self, request: Request) -> Response:
         deck_owner_username = request.data.get('deck_owner_username')
@@ -888,6 +899,14 @@ class PostFeedback(APIView):
                 },
                 status=404)
         # 7:
+        user_card_stat_num = Stat.objects.filter(owner=jwt_user,
+                                                 card=card).count()
+        print(Stat.objects.filter(owner=jwt_user,
+                                  card=card).earliest())
+        if user_card_stat_num >= USER_CARD_STAT_LIMIT:
+            stat = Stat.objects.filter(owner=jwt_user,
+                                       card=card).earliest()
+            stat.delete()
         stat = Stat(feedback=feedback,
                     owner=jwt_user,
                     card=card)

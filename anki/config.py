@@ -9,5 +9,5 @@ ACCOUNT_VERIFICATION_QUEUE_LIMIT = 20
 # Number of decks per user limit:
 USER_DECK_LIMIT = 30
 
-# Number of cards per deck limit:
-DECK_CARD_LIMIT = 1_000
+# Number of stats of a user on a card limit:
+USER_CARD_STAT_LIMIT = 100

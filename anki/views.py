@@ -33,9 +33,6 @@ from anki.config import (ACCOUNT_VERIFICATION_QUEUE_LIMIT as QUEUE_LIMIT,
 
 from api.settings import JWT_AUTH, SENDER_EMAIL_ADDRESS
 
-# TODO: dont allow non-active users to do much in the app
-#       bc they need to verify email first
-
 
 class SignUp(APIView):
     """
@@ -50,14 +47,15 @@ class SignUp(APIView):
            the user of the fact
         2. Validate form data and return 400 if not valid
         3. Try creating new user object with unique email and username,
-           set active field to false
+           set is_active field to false, inform of EMAIL_CONFLICT or
+           UNAME_CONFLICT if failed
         4. Email the provided address with the link
-           containing the unique code
+           containing the unique code (inform if could not send)
         5. Return the new user object as response
     """
     def post(self, request: Request) -> Response:
         # 1:
-        non_active_users_num = User.objects.filter(active=False).count()
+        non_active_users_num = User.objects.filter(is_active=False).count()
         if non_active_users_num >= QUEUE_LIMIT:
             return Response(
                 data={
@@ -95,7 +93,7 @@ class SignUp(APIView):
                                                 email=email,
                                                 password=password,
                                                 last_name=email_code)
-            new_user.active = False
+            new_user.is_active = False
             new_user.save()
         except IntegrityError:
             return Response(
@@ -109,7 +107,7 @@ class SignUp(APIView):
         try:
             send_mail(
                 'Anki account verification',
-                f'Hello\n\n,'
+                f'Hello,\n\n'
                 f'Your email address is being used to '
                 f'create an anki account for the user "{username}".\n'
                 f'In order to verify the account, follow the link: '
@@ -166,7 +164,7 @@ class SignUpVerify(APIView):
         # 2:
         try:
             user = User.objects.get(last_name=code)
-            if user.active:
+            if user.is_active:
                 # 3a:
                 return Response(
                     data={
@@ -176,7 +174,7 @@ class SignUpVerify(APIView):
                     status=200)
             else:
                 # 3b:
-                user.active = True
+                user.is_active = True
                 user.save()
                 return Response(
                     data={
@@ -202,15 +200,14 @@ class GetMe(APIView):
     Input: -
     Logic:
         1. Get claimed identity from the token
-        2. Anonymous user -> empty response   TODO: maybe consider
-                                                    different approach
+        2. Anonymous user -> empty response
         3. Return user object
     """
     def get(self, request: Request) -> Response:
         # 1:
         jwt_username = request.user.username
         # 2:
-        if not jwt_username:   # (EMPTY RESPONSE IF NO TOKEN)
+        if not jwt_username:
             return Response(
                 data={
                     'code': 'NOT_SIGNED_IN',
@@ -272,7 +269,7 @@ class GetDecks(APIView):
         serializer = DeckSerializer(decks, many=True)
         return Response(
             data={
-                **serializer.data,
+                'decks': serializer.data,
                 'code': 'OKAY',
                 'message': messages['OKAY'],
             },
@@ -419,7 +416,7 @@ class GetDeckStats(APIView):
         serializer = StatSerializer(stats, many=True)
         return Response(
             data={
-                **serializer.data,
+                'stats': serializer.data,
                 'code': 'OKAY',
                 'message': messages['OKAY'],
             },
@@ -519,104 +516,107 @@ class UpdateDeckStuff(APIView):
         6. Return the updated deck stuff
     """
     def post(self, request: Request) -> Response:
-        username = request.query_params.get('username')
-        # 1:
-        if not username or type(username) != str:
-            return Response(
-                data={
-                    'code': 'VALIDATION',
-                    'messages': messages['VALIDATION'],
-                },
-                status=400)
-        # 2:
-        jwt_username = request.user.username
-        # apprehend non-auth'd users:
-        if not jwt_username:
-            return Response(
-                data={
-                    'code': 'AUTH_REQUIRED',
-                    'message': messages['AUTH_REQUIRED'],
-                },
-                status=401)
-        # apprehend non-owner users:
-        if username != jwt_username:
-            return Response(
-                data={
-                    'code': 'ACCESS_DENIED',
-                    'message': messages['ACCESS_DENIED'],
-                },
-                status=401)
-        # 3:
-        user = request.user
-        if not user.active:
-            return Response(
-                data={
-                    'code': 'VERIFICATION_REQUIRED',
-                    'message': messages['VERIFICATION_REQUIRED'],
-                },
-                status=401)
-        # 4:
         try:
-            data = validate_and_normalize_deck_stuff(request.data)
-        except ValidationError:
-            return Response(
-                data={
-                    'code': 'VALIDATION',
-                    'messages': messages['VALIDATION'],
-                },
-                status=400)
-        # 5:
-        deckinfo = data.get('deck')
-        cards = data.get('cards')
-        # update deck:
-        try:
-            deck = Deck.objects.get(owner=user, pk=deckinfo['id'])
-            deck.name = deckinfo['name']
-            deck.color = deckinfo['color']
-            deck.public = deckinfo['public']
-        except Deck.DoesNotExist:
-            deck = Deck(name=deckinfo['name'], color=deckinfo['color'],
-                        public=deckinfo['public'], owner=user)
-        deck.save()
-        # update description:
-        try:
-            description = DeckDescription.objects.get(deck=deck)
-            description.description = deckinfo['description']
-        except DeckDescription.DoesNotExist:
-            description = DeckDescription(description=deckinfo['description'],
-                                          deck=deck)
-        description.save()
-        # update cards:
-        # A: remove cards with ids not present in request.data.cards
-        request_cards_ids = [card['id'] for card in cards]
-        db_cards = Card.objects.filter(deck=deck)
-        for db_card in db_cards:
-            if db_card.pk not in request_cards_ids:
-                db_card.delete()
-        # B: update the received cards, create if id not present
-        for card in cards:
+            username = request.query_params.get('username')
+            # 1:
+            if not username or type(username) != str:
+                return Response(
+                    data={
+                        'code': 'VALIDATION',
+                        'messages': messages['VALIDATION'],
+                    },
+                    status=400)
+            # 2:
+            jwt_username = request.user.username
+            # apprehend non-auth'd users:
+            if not jwt_username:
+                return Response(
+                    data={
+                        'code': 'AUTH_REQUIRED',
+                        'message': messages['AUTH_REQUIRED'],
+                    },
+                    status=401)
+            # apprehend non-owner users:
+            if username != jwt_username:
+                return Response(
+                    data={
+                        'code': 'ACCESS_DENIED',
+                        'message': messages['ACCESS_DENIED'],
+                    },
+                    status=401)
+            # 3:
+            user = request.user
+            if not user.is_active:
+                return Response(
+                    data={
+                        'code': 'VERIFICATION_REQUIRED',
+                        'message': messages['VERIFICATION_REQUIRED'],
+                    },
+                    status=401)
+            # 4:
             try:
-                card_in_db = Card.objects.get(pk=card['id'])
-                card_in_db.question = card['question']
-                card_in_db.answer = card['answer']
-            except Card.DoesNotExist:
-                card_in_db = Card(question=card['question'],
-                                  answer=card['answer'],
-                                  deck=deck)
-            card_in_db.save()
-        # 6:
-        deck = Deck.objects.get(name=deckinfo['name'], owner=user)
-        cards = Card.objects.filter(deck=deck)
-        deck_serializer = DeckInfoSerializer(deck)
-        card_serializer = CardSerializer(cards, many=True)
-        return Response(
-            data={
-                'deck': deck_serializer.data,
-                'cards': card_serializer.data,
-                'code': 'OKAY',
-                'message': messages['OKAY'],
-            },
-            status=200)
+                data = validate_and_normalize_deck_stuff(request.data)
+            except ValidationError:
+                return Response(
+                    data={
+                        'code': 'VALIDATION',
+                        'messages': messages['VALIDATION'],
+                    },
+                    status=400)
+            # 5:
+            deckinfo = data.get('deck')
+            cards = data.get('cards')
+            # update deck:
+            try:
+                deck = Deck.objects.get(owner=user, pk=deckinfo['id'])
+                deck.name = deckinfo['name']
+                deck.color = deckinfo['color']
+                deck.public = deckinfo['public']
+            except Deck.DoesNotExist:
+                deck = Deck(name=deckinfo['name'], color=deckinfo['color'],
+                            public=deckinfo['public'], owner=user)
+            deck.save()
+            # update description:
+            try:
+                description = DeckDescription.objects.get(deck=deck)
+                description.description = deckinfo['description']
+            except DeckDescription.DoesNotExist:
+                description = DeckDescription(description=deckinfo['description'],
+                                              deck=deck)
+            description.save()
+            # update cards:
+            # A: remove cards with ids not present in request.data.cards
+            request_cards_ids = [card['id'] for card in cards]
+            db_cards = Card.objects.filter(deck=deck)
+            for db_card in db_cards:
+                if db_card.pk not in request_cards_ids:
+                    db_card.delete()
+            # B: update the received cards, create if id not present
+            for card in cards:
+                try:
+                    card_in_db = Card.objects.get(pk=card['id'])
+                    card_in_db.question = card['question']
+                    card_in_db.answer = card['answer']
+                except Card.DoesNotExist:
+                    card_in_db = Card(question=card['question'],
+                                      answer=card['answer'],
+                                      deck=deck)
+                card_in_db.save()
+            # 6:
+            deck = Deck.objects.get(name=deckinfo['name'], owner=user)
+            cards = Card.objects.filter(deck=deck)
+            deck_serializer = DeckInfoSerializer(deck)
+            card_serializer = CardSerializer(cards, many=True)
+            return Response(
+                data={
+                    'deck': deck_serializer.data,
+                    'cards': card_serializer.data,
+                    'code': 'OKAY',
+                    'message': messages['OKAY'],
+                },
+                status=200)
+        except Exception as e:
+            print(e)
 
 
 class RemoveDeck(APIView):
@@ -666,7 +666,7 @@ class RemoveDeck(APIView):
                 },
                 status=401)
         # 3:
-        if not request.user.active:
+        if not request.user.is_active:
             return Response(
                 data={
                     'code': 'VERIFICATION_REQUIRED',
@@ -806,7 +806,7 @@ class PostFeedback(APIView):
 
     TODO: change the protocol to also include the username of the one
           leaving the feedback to enable JWT_AUTH=False tests later
-    TODO: add validation
+    TODO: add validation (required fields and types in data)
 
     Input: request.data[{
                       deck_owner_username: string
@@ -842,7 +842,7 @@ class PostFeedback(APIView):
                 status=401)
         jwt_user = request.user
         # 2:
-        if not jwt_user.active:
+        if not jwt_user.is_active:
             return Response(
                 data={
                     'code': 'VERIFICATION_REQUIRED',

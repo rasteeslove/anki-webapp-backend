@@ -1,7 +1,8 @@
 """
 This module contains the error codes and messages for the views.
 
-TODO: change this into a dict of responses instead.
+TODO: change this into a dict of responses instead, or functions
+      returning responses (do that in "Code optimization" PR).
 """
 
 
@@ -37,7 +38,12 @@ messages = {
     # Messages for when getting the current user (get-me):
     'NOT_SIGNED_IN': 'You are not signed in.',
     'SIGNED_IN': 'You are signed in.',
+    # Messages for when changing database data:
+    '': '',
     # Messages for train mode:
     'NO_CARDS_IN_DECK': 'There are no cards in deck.',
     'CARD_NOT_FOUND': 'Card with such id is not found.',
+    # Other messages:
+    'DEV_MESSED_UP': 'Somewhat unexpected behavior occurred, big time. '
+                     'Error reported.',
 }

@@ -815,7 +815,6 @@ class PostFeedback(APIView):
 
     TODO: change the protocol to also include the username of the one
           leaving the feedback to enable JWT_AUTH=False tests later
-    TODO: add validation (required fields and types in data)
 
     Input: request.data[{
                       deck_owner_username: string
@@ -824,25 +823,38 @@ class PostFeedback(APIView):
                       feedback: boolean
                   }]
     Logic:
-        1. no jwt -> no posting feedback (401) (irregardless of
+        1. Validate request data
+        2. no jwt -> no posting feedback (401) (irregardless of
                                                 JWT_AUTH)
-        2. Deny non-active users this action
-        3. Does the {deck_owner_username} user exist ? continue
+        3. Deny non-active users this action
+        4. Does the {deck_owner_username} user exist ? continue
                                                      : 404(user)
-        4. Does the {deckname} deck exist ? continue : 404(deck)
-        5. Does the {card_id} card exist ? continue : 404(card)
-        6. Check if deck visibility allows the requesting party to post
+        5. Does the {deckname} deck exist ? continue : 404(deck)
+        6. Does the {card_id} card exist ? continue : 404(card)
+        7. Check if deck visibility allows the requesting party to post
            feedback
-        7. Create new Stat(jwt.user, deck) with specified feedback
+        8. Create new Stat(jwt.user, deck) with specified feedback
            If the number of user stats on card is max, delete
            the oldest one
     """
     def post(self, request: Request) -> Response:
-        deck_owner_username = request.data.get('deck_owner_username')
-        deckname = request.data.get('deckname')
-        card_id = request.data.get('card_id')
-        feedback = request.data.get('feedback')
         # 1:
+        data = request.data
+        if (not data.get('deck_owner_username')
+                or type(data['deck_owner_username']) != str
+                or not data.get('deckname') or type(data['deckname']) != str
+                or not data.get('feedback') or type(data['feedback']) != str):
+            return Response(
+                data={
+                    'code': 'VALIDATION',
+                    'message': messages['VALIDATION'],
+                },
+                status=400)
+        deck_owner_username = data['deck_owner_username']
+        deckname = data['deckname']
+        card_id = data['card_id']
+        feedback = data['feedback']
+        # 2:
         jwt_username = request.user.username
         if not jwt_username:
             return Response(
@@ -852,7 +864,7 @@ class PostFeedback(APIView):
                 },
                 status=401)
         jwt_user = request.user
-        # 2:
+        # 3:
         if not jwt_user.is_active:
             return Response(
                 data={
@@ -860,7 +872,7 @@ class PostFeedback(APIView):
                     'message': messages['VERIFICATION_REQUIRED'],
                 },
                 status=401)
-        # 3:
+        # 4:
         try:
             user = User.objects.get(username=deck_owner_username)
         except User.DoesNotExist:
@@ -870,7 +882,7 @@ class PostFeedback(APIView):
                     'message': messages['USER_NOT_FOUND'],
                 },
                 status=404)
-        # 4:
+        # 5:
         try:
             deck = Deck.objects.get(owner=user, name=deckname)
         except Deck.DoesNotExist:
@@ -880,7 +892,7 @@ class PostFeedback(APIView):
                     'message': messages['DECK_NOT_FOUND'],
                 },
                 status=404)
-        # 5:
+        # 6:
         if jwt_username != deck_owner_username and not deck.public:
             return Response(
                 data={
@@ -888,7 +900,7 @@ class PostFeedback(APIView):
                     'message': messages['DECK_NOT_FOUND'],
                 },
                 status=404)
-        # 6:
+        # 7:
         try:
             card = Card.objects.get(deck=deck, pk=card_id)
         except Deck.DoesNotExist:
@@ -898,19 +910,17 @@ class PostFeedback(APIView):
                     'message': messages['CARD_NOT_FOUND'],
                 },
                 status=404)
-        # 7:
-        user_card_stat_num = Stat.objects.filter(owner=jwt_user,
-                                                 card=card).count()
-        print(Stat.objects.filter(owner=jwt_user,
-                                  card=card).earliest())
-        if user_card_stat_num >= USER_CARD_STAT_LIMIT:
-            stat = Stat.objects.filter(owner=jwt_user,
-                                       card=card).earliest()
-            stat.delete()
+        # 8:
         stat = Stat(feedback=feedback,
                     owner=jwt_user,
                     card=card)
         stat.save()
+        user_card_stat_num = Stat.objects.filter(owner=jwt_user,
+                                                 card=card).count()
+        if user_card_stat_num > USER_CARD_STAT_LIMIT:
+            stat = Stat.objects.filter(owner=jwt_user,
+                                       card=card).earliest()
+            stat.delete()
         return Response(
             data={
                 'code': 'OKAY',

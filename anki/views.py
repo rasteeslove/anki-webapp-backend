@@ -300,7 +300,7 @@ class GetDeckInfo(APIView):
             return Response(
                 data={
                     'code': 'VALIDATION',
-                    'messages': messages['VALIDATION'],
+                    'message': messages['VALIDATION'],
                 },
                 status=400)
         # 2:

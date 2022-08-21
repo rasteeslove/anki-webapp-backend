@@ -125,7 +125,7 @@ class SignUp(APIView):
         serializer = UserSerializer(new_user)
         return Response(
             data={
-                **serializer.data,
+                'user': serializer.data,
                 'code': 'OKAY' if emailing_succeeded else 'MAIL_NOT_SENT',
                 'message': (messages['OKAY']
                             if emailing_succeeded else
@@ -219,7 +219,7 @@ class GetMe(APIView):
         serializer = UserSerializer(user)
         return Response(
             data={
-                **serializer.data,
+                'user': serializer.data,
                 'code': 'SIGNED_IN',
                 'message': messages['SIGNED_IN'],
             },
@@ -336,7 +336,7 @@ class GetDeckInfo(APIView):
         serializer = DeckInfoSerializer(deck)
         return Response(
             data={
-                **serializer.data,
+                'deckinfo': serializer.data,
                 'code': 'OKAY',
                 'message': messages['OKAY'],
             },
@@ -799,7 +799,7 @@ class PullNextCard(APIView):
             card_serializer = CardSerializer(random_card)
             return Response(
                 data={
-                    **card_serializer.data,
+                    'card': card_serializer.data,
                     'code': 'OKAY',
                     'message': messages['OKAY'],
                 },

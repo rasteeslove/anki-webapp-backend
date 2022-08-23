@@ -712,6 +712,27 @@ class RemoveDeck(APIView):
             status=200)
 
 
+class CreateDeck(APIView):
+    """
+    Create a new deck with unique name for a particular user.
+
+    Endpoint: `create-deck/`
+
+    Input: request.data[{
+                      username: str
+                  }]
+    Logic:
+        1. Validate username: it should be a string
+        2. If JWT_AUTH=True, prevent users creating decks
+           for others (401)
+        3. Deny non-active users this action
+        4. Does the {username} user exist ? continue : 404(user)
+        5. Create a new {random_name} deck for the {username} user
+    """
+    def post(self, request: Request) -> Response:
+        pass
+
+
 class PullNextCard(APIView):
     """
     Get a not-exactly-random card from a particular deck.

@@ -15,12 +15,18 @@ import os
 import dj_database_url
 
 try:
-    from api.secrets import PROD_SECRET_KEY
-except:
+    from api.secrets import (PROD_SECRET_KEY,
+                             AWS_ACCESS_KEY_ID,
+                             AWS_SECRET_ACCESS_KEY,
+                             SENDER_EMAIL_ADDRESS)
+except ImportError:
     try:
-        PROD_SECRET_KEY = os.environ.get('SECRET_KEY')
-    except:
-        pass
+        PROD_SECRET_KEY = os.environ['SECRET_KEY']
+        AWS_ACCESS_KEY_ID = os.environ['AWS_ACCESS_KEY_ID']
+        AWS_SECRET_ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
+        SENDER_EMAIL_ADDRESS = os.environ['SENDER_EMAIL_ADDRESS']
+    except KeyError:
+        raise IOError('Missing configuration.')
 
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -127,6 +133,9 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=10),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 }
+
+# AWS SES
+EMAIL_BACKEND = 'django_ses.SESBackend'
 
 
 # Database

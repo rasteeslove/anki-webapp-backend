@@ -8,8 +8,6 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 
 # TODO: probably the better way is to use the "schema" library
-# TODO: maybe using try-except is not the best way, considering
-#       it affects speed a bit
 
 
 def validate_and_normalize_signup_form(data: dict) -> dict:

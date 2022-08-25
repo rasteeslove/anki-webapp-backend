@@ -1,14 +1,12 @@
-from dataclasses import field
-from statistics import mode
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from anki.models import Deck, DeckDescription, Card, Stat
+from anki.models import Deck, Card, Stat
 
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = '__all__'
+        fields = ['id', 'username', 'email', 'date_joined', 'last_login']
 
 
 class DeckSerializer(serializers.ModelSerializer):

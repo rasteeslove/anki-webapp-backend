@@ -788,7 +788,7 @@ class CreateDeck(APIView):
         index = 1
         while index < USER_DECK_LIMIT:
             try:
-                deck = Deck(name=f'New Deck #{index}',
+                deck = Deck(name=f'New Deck {index}',
                             color='#6a6a6a',
                             public=False, owner=user)
                 deck.save()

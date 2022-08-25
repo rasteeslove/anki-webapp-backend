@@ -728,9 +728,95 @@ class CreateDeck(APIView):
         3. Deny non-active users this action
         4. Does the {username} user exist ? continue : 404(user)
         5. Create a new {random_name} deck for the {username} user
+           and return it in the response
     """
     def post(self, request: Request) -> Response:
-        pass
+        username = request.data.get('username')
+        # 1:
+        if not username or type(username) != str:
+            return Response(
+                data={
+                    'code': 'VALIDATION',
+                    'message': messages['VALIDATION'],
+                },
+                status=400)
+        # 2:
+        jwt_username = request.user.username
+        if JWT_AUTH and not jwt_username:
+            return Response(
+                data={
+                    'code': 'AUTH_REQUIRED',
+                    'message': messages['AUTH_REQUIRED'],
+                },
+                status=401)
+        if JWT_AUTH and username != jwt_username:
+            return Response(
+                data={
+                    'code': 'ACCESS_DENIED',
+                    'message': messages['ACCESS_DENIED'],
+                },
+                status=401)
+        # 3:
+        if not request.user.is_active:
+            return Response(
+                data={
+                    'code': 'VERIFICATION_REQUIRED',
+                    'message': messages['VERIFICATION_REQUIRED'],
+                },
+                status=401)
+        # 4:
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return Response(
+                data={
+                    'code': 'USER_NOT_FOUND',
+                    'message': messages['USER_NOT_FOUND'],
+                },
+                status=404)
+        # 5:
+        # ensure there are not too much user decks in the database:
+        deck_number = Deck.objects.filter(owner=user).count()
+        if deck_number >= USER_DECK_LIMIT:
+            return Response(
+                data={
+                    'code': 'TOO_MUCH_DATA',
+                    'message': messages['TOO_MUCH_DATA'],
+                },
+                status=400)
+        # create a new deck with unique name:
+        index = 1
+        while index < USER_DECK_LIMIT:
+            try:
+                deck = Deck(name=f'New Deck #{index}',
+                            color='#6a6a6a',
+                            public=False, owner=user)
+                deck.save()
+                break
+            except IntegrityError:
+                index += 1
+        else:
+            return Response(
+                data={
+                    'code': 'DEV_MESSED_UP',
+                    'message': messages['DEV_MESSED_UP'],
+                },
+                status=500)
+        description = DeckDescription(description='No description yet.',
+                                      deck=deck)
+        description.save()
+        card = Card(question='Is this deck empty?',
+                    answer='It is :)',
+                    deck=deck)
+        card.save()
+        serializer = DeckSerializer(deck)
+        return Response(
+            data={
+                'decks': [serializer.data],
+                'code': 'OKAY',
+                'message': messages['OKAY'],
+            },
+            status=200)
 
 
 class PullNextCard(APIView):

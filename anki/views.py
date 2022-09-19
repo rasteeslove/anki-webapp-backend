@@ -7,6 +7,7 @@ note: all requests here presume either no auth tokens, or valid JWT
 """
 
 import random
+from time import sleep
 
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
@@ -204,6 +205,7 @@ class GetMe(APIView):
         3. Return user object
     """
     def get(self, request: Request) -> Response:
+        sleep(2)
         # 1:
         jwt_username = request.user.username
         # 2:
@@ -947,10 +949,10 @@ class PostFeedback(APIView):
     def post(self, request: Request) -> Response:
         # 1:
         data = request.data
-        if (not data.get('deck_owner_username')
-                or type(data['deck_owner_username']) != str
-                or not data.get('deckname') or type(data['deckname']) != str
-                or not data.get('feedback') or type(data['feedback']) != str):
+        if (type(data.get('deck_owner_username')) != str
+                or type(data.get('deckname')) != str
+                or type(data.get('card_id')) != int
+                or type(data.get('feedback')) != bool):
             return Response(
                 data={
                     'code': 'VALIDATION',

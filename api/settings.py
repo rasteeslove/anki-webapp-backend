@@ -16,15 +16,19 @@ import dj_database_url
 
 try:
     from api.secrets import (PROD_SECRET_KEY,
-                             AWS_ACCESS_KEY_ID,
-                             AWS_SECRET_ACCESS_KEY,
-                             SENDER_EMAIL_ADDRESS)
+                             # AWS_ACCESS_KEY_ID,
+                             # AWS_SECRET_ACCESS_KEY,
+                             SENDER_EMAIL_ADDRESS,
+                             EMAIL_HOST_USER,
+                             EMAIL_HOST_PASSWORD)
 except ImportError:
     try:
         PROD_SECRET_KEY = os.environ['SECRET_KEY']
-        AWS_ACCESS_KEY_ID = os.environ['AWS_ACCESS_KEY_ID']
-        AWS_SECRET_ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
-        SENDER_EMAIL_ADDRESS = os.environ['SENDER_EMAIL_ADDRESS']
+        # AWS_ACCESS_KEY_ID = os.environ['AWS_ACCESS_KEY_ID']
+        # AWS_SECRET_ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
+        # SENDER_EMAIL_ADDRESS = os.environ['SENDER_EMAIL_ADDRESS']
+        EMAIL_HOST_USER = os.environ['EMAIL_HOST_USER']
+        EMAIL_HOST_PASSWORD = os.environ['EMAIL_HOST_PASSWORD']
     except KeyError:
         raise IOError('Missing configuration.')
 
@@ -134,8 +138,15 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 }
 
-# AWS SES
-EMAIL_BACKEND = 'django_ses.SESBackend'
+# AWS SES (temporarily unavailable) TODO: new AWS account, new SES
+# EMAIL_BACKEND = 'django_ses.SESBackend'
+# Tmp solution:
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_USE_TLS = True
+EMAIL_PORT = 587
+# EMAIL_HOST_USER is retrieved from env | secrets.py
+# EMAIL_HOST_PASSWORD is retrieved from env | secrets.py
 
 
 # Database

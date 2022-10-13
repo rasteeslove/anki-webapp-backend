@@ -1038,3 +1038,25 @@ class PostFeedback(APIView):
                 'message': messages['OKAY'],
             },
             status=200)
+
+
+# TMP:
+class TmpCVFeedback(APIView):
+    """
+    Tmp
+    """
+    def post(self, request: Request) -> Response:
+        data = request.data
+        msg = data['message']
+        try:
+            success = send_mail(
+                'CV feedback',
+                msg,
+                SENDER_EMAIL_ADDRESS,
+                ['krastsislau@gmail.com']
+            )
+            if success == 0:
+                raise Exception()
+        except Exception as e:
+            return Response(status=400)
+        return Response()

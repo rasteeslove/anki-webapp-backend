@@ -20,7 +20,8 @@ try:
                              # AWS_SECRET_ACCESS_KEY,
                              SENDER_EMAIL_ADDRESS,
                              EMAIL_HOST_USER,
-                             EMAIL_HOST_PASSWORD)
+                             EMAIL_HOST_PASSWORD,
+                             TMP_ALLOWED_ORIGIN_1)
 except ImportError:
     try:
         PROD_SECRET_KEY = os.environ['SECRET_KEY']
@@ -29,6 +30,7 @@ except ImportError:
         # SENDER_EMAIL_ADDRESS = os.environ['SENDER_EMAIL_ADDRESS']
         EMAIL_HOST_USER = os.environ['EMAIL_HOST_USER']
         EMAIL_HOST_PASSWORD = os.environ['EMAIL_HOST_PASSWORD']
+        TMP_ALLOWED_ORIGIN_1 = os.environ['TMP_ALLOWED_ORIGIN_1']
     except KeyError:
         raise IOError('Missing configuration.')
 
@@ -107,6 +109,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:3001',
     'http://localhost:3002',
     'http://localhost:3003',
+    TMP_ALLOWED_ORIGIN_1
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [

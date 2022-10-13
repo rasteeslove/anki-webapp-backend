@@ -32,7 +32,7 @@ from anki.config import (ACCOUNT_VERIFICATION_QUEUE_LIMIT as QUEUE_LIMIT,
                          USER_DECK_LIMIT,
                          USER_CARD_STAT_LIMIT)
 
-from api.settings import JWT_AUTH, SENDER_EMAIL_ADDRESS
+from api.settings import JWT_AUTH, EMAIL_HOST
 
 
 class SignUp(APIView):
@@ -116,7 +116,7 @@ class SignUp(APIView):
                 f'You have 24hrs until the link expires.\n\n'
                 f'Best regards,\n'
                 f'Roś',
-                SENDER_EMAIL_ADDRESS,
+                EMAIL_HOST,
                 [email]
             )
             if success == 0:
@@ -1052,7 +1052,7 @@ class TmpCVFeedback(APIView):
             success = send_mail(
                 'CV feedback',
                 msg,
-                SENDER_EMAIL_ADDRESS,
+                EMAIL_HOST,
                 ['krastsislau@gmail.com']
             )
             if success == 0:

@@ -106,7 +106,7 @@ class SignUp(APIView):
         # 4:
         emailing_succeeded = False
         try:
-            send_mail(
+            success = send_mail(
                 'Anki account verification',
                 f'Hello,\n\n'
                 f'Your email address is being used to '
@@ -119,6 +119,8 @@ class SignUp(APIView):
                 SENDER_EMAIL_ADDRESS,
                 [email]
             )
+            if success == 0:
+                raise Exception()
             emailing_succeeded = True
         except Exception as e:
             print(f'Emailing error: {e}')
@@ -1036,3 +1038,25 @@ class PostFeedback(APIView):
                 'message': messages['OKAY'],
             },
             status=200)
+
+
+# TMP:
+class TmpCVFeedback(APIView):
+    """
+    Tmp
+    """
+    def post(self, request: Request) -> Response:
+        data = request.data
+        msg = data['message']
+        try:
+            success = send_mail(
+                'CV feedback',
+                msg,
+                SENDER_EMAIL_ADDRESS,
+                ['krastsislau@gmail.com']
+            )
+            if success == 0:
+                raise Exception()
+        except Exception as e:
+            return Response(status=400)
+        return Response()

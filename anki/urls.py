@@ -10,7 +10,8 @@ from anki.views import (SignUp,
                         RemoveDeck,
                         CreateDeck,
                         PullNextCard,
-                        PostFeedback)
+                        PostFeedback,
+                        TmpCVFeedback)
 
 
 anki_urls = [
@@ -26,4 +27,5 @@ anki_urls = [
     path('create-deck/', CreateDeck.as_view()),
     path('pull-next-card', PullNextCard.as_view()),
     path('post-feedback/', PostFeedback.as_view()),
+    path('tmp-aws-lambda-substitute-endpoint/', TmpCVFeedback.as_view()),
 ]

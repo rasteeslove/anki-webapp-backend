@@ -33,6 +33,8 @@ except ImportError:
         EMAIL_HOST_USER = os.environ['EMAIL_HOST_USER']
         EMAIL_HOST_PASSWORD = os.environ['EMAIL_HOST_PASSWORD']
         TMP_ALLOWED_ORIGIN_1 = os.environ['TMP_ALLOWED_ORIGIN_1']
+        TMP_ALLOWED_ORIGIN_2 = os.environ['TMP_ALLOWED_ORIGIN_2']
+        TMP_ALLOWED_ORIGIN_3 = os.environ['TMP_ALLOWED_ORIGIN_3']
     except KeyError:
         raise IOError('Missing configuration.')
 
@@ -118,11 +120,8 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r'^https://anki-webapp.*\.vercel\.app$',
-    r'^https://the-all-demo.*\.vercel\.app$',
+    r'^https://the-all-demo*\.vercel\.app$',
 ]
-
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
 
 ROOT_URLCONF = 'api.urls'
 

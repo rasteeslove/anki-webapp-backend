@@ -121,6 +121,9 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r'^https://the-all-demo.*\.vercel\.app$',
 ]
 
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+
 ROOT_URLCONF = 'api.urls'
 
 TEMPLATES = [

@@ -21,7 +21,9 @@ try:
                              SENDER_EMAIL_ADDRESS,
                              EMAIL_HOST_USER,
                              EMAIL_HOST_PASSWORD,
-                             TMP_ALLOWED_ORIGIN_1)
+                             TMP_ALLOWED_ORIGIN_1,
+                             TMP_ALLOWED_ORIGIN_2,
+                             TMP_ALLOWED_ORIGIN_3,)
 except ImportError:
     try:
         PROD_SECRET_KEY = os.environ['SECRET_KEY']
@@ -109,7 +111,9 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:3001',
     'http://localhost:3002',
     'http://localhost:3003',
-    TMP_ALLOWED_ORIGIN_1
+    TMP_ALLOWED_ORIGIN_1,
+    TMP_ALLOWED_ORIGIN_2,
+    TMP_ALLOWED_ORIGIN_3,
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [

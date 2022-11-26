@@ -11,7 +11,8 @@ from anki.views import (SignUp,
                         CreateDeck,
                         PullNextCard,
                         PostFeedback,
-                        TmpCVFeedback)
+                        TmpCVFeedback,
+                        TmpAllBecomePartnerView)
 
 
 anki_urls = [
@@ -28,4 +29,5 @@ anki_urls = [
     path('pull-next-card', PullNextCard.as_view()),
     path('post-feedback/', PostFeedback.as_view()),
     path('tmp-aws-lambda-substitute-endpoint/', TmpCVFeedback.as_view()),
+    path('tmp-all-project-endpoint/', TmpAllBecomePartnerView.as_view()),
 ]

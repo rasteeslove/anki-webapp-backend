@@ -1060,3 +1060,36 @@ class TmpCVFeedback(APIView):
         except Exception as e:
             return Response(status=400)
         return Response()
+
+
+# TMP:
+class TmpAllBecomePartnerView(APIView):
+    """
+    Tmp
+    """
+    def post(self, request: Request) -> Response:
+        data = request.data
+        email = data['email']
+        name = data['name']
+        business = data['business']
+        message = data['message']
+        send_mail(
+            'Стартап ALL',
+            f'Здравствуйте, {name},\n\n'
+            f'Спасибо, что заполнили форму с партнерстве.\n'
+            f'Мы получили Ваши данные и вскоре свяжемся с Вами.'
+            f'\n\n'
+            f'Best regards,\n'
+            f'Команда ALL',
+            EMAIL_HOST,
+            [email]
+        )
+        send_mail(
+            'ALL BLOCKCHAIN PARTNERSHIP REQUEST',
+            f'{email}; {name}; {business}; {message}',
+            EMAIL_HOST,
+            ['krastsislau@gmail.com']
+        )
+        return Response(
+            status=200
+        )

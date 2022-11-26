@@ -118,6 +118,7 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r'^https://anki-webapp.*\.vercel\.app$',
+    r'^https://the-all-demo.*\.vercel\.app$',
 ]
 
 ROOT_URLCONF = 'api.urls'
